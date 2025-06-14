@@ -14,7 +14,7 @@ make CONSOLE=col        CORE=cores/Gearcoleco/platforms/libretro && \
 make CONSOLE=fcf        CORE=cores/FreeChaF && \
 make CONSOLE=retro8     CORE=cores/retro8 && \
 make CONSOLE=vapor      CORE=cores/vaporspec/machine MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=2048       CORE=cores/libretro-2048 MAKEFILE=-fMakefile.libretro && \
+#make CONSOLE=2048       CORE=cores/libretro-2048 MAKEFILE=-fMakefile.libretro && \
 make CONSOLE=gong       CORE=cores/gong MAKEFILE=-fMakefile.libretro && \
 make CONSOLE=outrun     CORE=cores/cannonball && \
 make CONSOLE=wolf3d     CORE=cores/ecwolf/src/libretro && \
@@ -29,8 +29,6 @@ make CONSOLE=gme        CORE=cores/libretro-gme && \
 make CONSOLE=pce        CORE=cores/libretro-beetle-pce-fast && \
 make CONSOLE=ngpc       CORE=cores/RACE && \
 make CONSOLE=gba        CORE=cores/gpsp && \
-make CONSOLE=dblcherrygb  CORE=more-cores/libretro-doublecherryGB && \
-make CONSOLE=m2kn       CORE=more-cores/libretro-mamenummacwaytausend && \
 make CONSOLE=gbb        CORE=cores/libretro-gambatte && \
 make CONSOLE=gbgb       CORE=cores/Gearboy/platforms/libretro && \
 make CONSOLE=gb         CORE=cores/libretro-tgbdual && \
@@ -51,7 +49,7 @@ make CONSOLE=wsv        CORE=cores/potator/platform/libretro && \
 make CONSOLE=amstrad    CORE=cores/libretro-crocods && \
 make CONSOLE=arduboy    CORE=cores/arduous && \
 make CONSOLE=lnxb       CORE=cores/libretro-beetle-lynx && \
-make CONSOLE=bk         CORE=cores/bk-emulator MAKEFILE=-fMakefile.libretro && \
+#make CONSOLE=bk         CORE=cores/bk-emulator MAKEFILE=-fMakefile.libretro && \
 make clean CONSOLE=c64sc   CORE=cores/libretro-vice EMUTYPE=x64sc && \
 make CONSOLE=c64sc         CORE=cores/libretro-vice EMUTYPE=x64sc && \
 make clean CONSOLE=c64sc   CORE=cores/libretro-vice EMUTYPE=x64sc && \
@@ -69,7 +67,7 @@ make CONSOLE=vic20         CORE=cores/libretro-vice EMUTYPE=xvic && \
 make clean CONSOLE=vic20   CORE=cores/libretro-vice EMUTYPE=xvic && \
 make CONSOLE=fake08     CORE=cores/fake-08/platform/libretro && \
 make CONSOLE=lowres-nx  CORE=cores/lowres-nx/platform/LibRetro && \
-make CONSOLE=mrboom     CORE=cores/libretro-mrboom && \
+#make CONSOLE=mrboom     CORE=cores/libretro-mrboom && \
 make CONSOLE=jnb        CORE=cores/libretro-jumpnbump && \
 make CONSOLE=cavestory  CORE=cores/libretro-nxengine && \
 #make CONSOLE=x48        CORE=cores/libretro-x48 && \
@@ -85,24 +83,8 @@ make CONSOLE=gpgx       CORE=cores/Genesis-Plus-GX MAKEFILE=-fMakefile.libretro 
 make CONSOLE=geolith    CORE=cores/libretro-geolith/libretro && \
 make CONSOLE=xmil       CORE=cores/libretro-xmil/libretro && \
 
-#working but major issues, not to release
-#make -C cores/fbalpha2012/svn-current/trunk platform=sf2000 -fmakefile.libretro generate-files && make CONSOLE=fba CORE=cores/fbalpha2012/svn-current/trunk MAKEFILE=-fmakefile.libretro && \
-#make CONSOLE=mame2003   CORE=cores/libretro-mame2003-plus && \
-#make CONSOLE=mame2003mw CORE=cores/mame2003_midway && \
-#make CONSOLE=atarist    CORE=cores/hatari MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=quake      CORE=cores/tyrquake && \
-
 #test cores
 make CONSOLE=testadv CORE=cores/libretro-samples/tests/test_advanced && \
 make CONSOLE=testwav CORE=cores/libretro-samples/audio/audio_playback_wav && \
-
-#deprecated working
-#
-make CONSOLE=tennis     CORE=cores/retro-tennis && \
-#
-
-
-#make updatelogo ALPHARELEASE=0.10
-
 
 true

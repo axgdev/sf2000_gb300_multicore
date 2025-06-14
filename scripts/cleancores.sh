@@ -29,8 +29,6 @@ make clean CONSOLE=gme        CORE=cores/libretro-gme && \
 make clean CONSOLE=pce        CORE=cores/libretro-beetle-pce-fast && \
 make clean CONSOLE=ngpc       CORE=cores/RACE && \
 make clean CONSOLE=dblcherrygb  CORE=cores/libretro-doublecherryGB && \
-make clean CONSOLE=dblcherrygb  CORE=more-cores/libretro-doublecherryGB && \
-make clean CONSOLE=m2kn       CORE=more-cores/libretro-mamenummacwaytausend && \
 make clean CONSOLE=gba        CORE=cores/gpsp && \
 make clean CONSOLE=gbb        CORE=cores/libretro-gambatte && \
 make clean CONSOLE=gbgb       CORE=cores/Gearboy/platforms/libretro && \
@@ -76,65 +74,8 @@ make clean CONSOLE=gpgx       CORE=cores/Genesis-Plus-GX MAKEFILE=-fMakefile.lib
 make clean CONSOLE=geolith    CORE=cores/libretro-geolith/libretro && \
 make clean CONSOLE=xmil       CORE=cores/libretro-xmil/libretro && \
 
-#working but major issues, not to release
-#make -C cores/fbalpha2012/svn-current/trunk platform=sf2000 -fmakefile.libretro generate-files-clean && make clean CONSOLE=fba CORE=cores/fbalpha2012/svn-current/trunk MAKEFILE=-fmakefile.libretro && \
-#make clean CONSOLE=mame2003   CORE=cores/libretro-mame2003-plus && \
-#make clean CONSOLE=mame2003mw CORE=cores/mame2003_midway && \
-#make clean CONSOLE=atarist    CORE=cores/hatari MAKEFILE=-fMakefile.libretro && \
-#make clean CONSOLE=quake      CORE=cores/tyrquake && \
-
 #test cores
 make clean CONSOLE=testadv CORE=cores/libretro-samples/tests/test_advanced && \
 make clean CONSOLE=testwav CORE=cores/libretro-samples/audio/audio_playback_wav && \
-
-#deprecated working
-#
-#make clean CONSOLE=tennis  CORE=cores/retro-tennis && \
-# 
-
-#not working
-make clean CONSOLE=cps3       CORE=cores/fbalpha2012_cps3/svn-current/trunk MAKEFILE=-fmakefile.libretro && \
-make clean CONSOLE=sbw        CORE=cores/libretro-superbroswar MAKEFILE=-fMakefile.libretro && \
-#make -C cores/FBNeo/src/burner/libretro platform=sf2000 generate-files-clean && make clean CONSOLE=fbn CORE=cores/FBNeo/src/burner/libretro && \
-make clean CONSOLE=glxy       CORE=cores/libretro-galaxy && \
-make clean CONSOLE=mac        CORE=cores/libretro-minivmac && \
-make clean CONSOLE=fmsx       CORE=cores/libretro-fmsx && \
-make clean CONSOLE=gbam       CORE=cores/libretro-vbam/src/libretro && \
-make clean CONSOLE=gbs        CORE=cores/SameBoy/libretro && \
-make clean CONSOLE=x68k       CORE=cores/libretro-px68k && \
-make clean CONSOLE=uzem       CORE=cores/libretro-uzem && \
-make clean CONSOLE=cps1       CORE=cores/fbalpha2012_cps1 && \
-make clean CONSOLE=cps2       CORE=cores/fbalpha2012_cps2 && \
-make clean CONSOLE=neogeo     CORE=cores/fbalpha2012_neogeo && \
-make clean CONSOLE=jag        CORE=cores/libretro-virtualjaguar && \
-make clean CONSOLE=zork       CORE=cores/mojozork MAKEFILE=-fMakefile.libretro && \
-make clean CONSOLE=img        CORE=cores/libretro-imageviewer-legacy MAKEFILE=-fMakefile.libretro && \
-make clean CONSOLE=snesc      CORE=cores/chimerasnes && \
-make clean CONSOLE=snesn      CORE=cores/snes9x-next && \
-make clean CONSOLE=numero     CORE=cores/numero && \
-make clean CONSOLE=3do        CORE=cores/libretro-opera && \
-make clean CONSOLE=a800       CORE=cores/libretro-atari800 && \
-make clean CONSOLE=dossvn     CORE=cores/dosbox-svn/libretro && \
-make clean CONSOLE=uw8        CORE=cores/libretro-uw8 && \
-make clean CONSOLE=nogg       CORE=cores/libretro-nogg && \
-make clean CONSOLE=quake2     CORE=cores/vitaquake2 && \
-make clean CONSOLE=risc       CORE=cores/oberon-risc-emu MAKEFILE=-fMakefile.libretro && \
-make clean CONSOLE=vmu        CORE=cores/libretro-vemulator && \
-make clean CONSOLE=psx        CORE=cores/libretro-beetle-psx && \
-
-#experimental
-#
-#make clean CONSOLE=c128       CORE=cores/libretro-vice EMUTYPE=x128 && \
-#make clean CONSOLE=cbm2       CORE=cores/libretro-vice EMUTYPE=xcbm2 && \
-#make clean CONSOLE=cbm5x0     CORE=cores/libretro-vice EMUTYPE=xcbm5x0 && \
-#make clean CONSOLE=pet        CORE=cores/libretro-vice EMUTYPE=xpet && \
-#make clean CONSOLE=plus4      CORE=cores/libretro-vice EMUTYPE=xplus4 && \
-#make clean CONSOLE=scpu64     CORE=cores/libretro-vice EMUTYPE=xscpu64 && \
-#make clean CONSOLE=a800       CORE=cores/libretro-atari800 && \
-#make clean CONSOLE=snes10     CORE=../cores_not_in_git/snes9x2010 && \
-#make clean CONSOLE=pressf     CORE=../cores_not_in_git/Press_F && \
-#make clean CONSOLE=dosboxl    CORE=../cores_not_in_git/dosbox-libretro && \
-#make clean CONSOLE=obake      CORE=../cores_not_in_git/libretro-experiment && \
-
 
 true

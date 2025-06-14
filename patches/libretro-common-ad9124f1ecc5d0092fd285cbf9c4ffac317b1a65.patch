@@ -1,0 +1,365 @@
+diff --git a/.gitignore b/.gitignore
+index 4e88cc3..21f8c5f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,6 +1,10 @@
++*.elf
++*~
+ glsm/
+ *.[od]
+ *.dll
+ *.so
++*.o
++*.a
+ *.dylib
+ *.exe
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..15316fe
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,69 @@
++
++MIPS = /opt/mips32-mti-elf/2019.09-03-2/bin/mips-mti-elf-
++CC = $(MIPS)gcc
++AR = $(MIPS)ar
++
++CFLAGS = -EL -march=mips32 -mtune=mips32 -msoft-float
++CFLAGS += -ffast-math -fomit-frame-pointer
++CFLAGS += -G0 -mno-abicalls -fno-pic
++CFLAGS += -ffunction-sections -fdata-sections
++CFLAGS += -DSF2000
++
++CFLAGS += -O2 -DNDEBUG
++CFLAGS += -Iinclude -I./include/compat/zlib
++CFLAGS += -I../../src
++#CFLAGS += -D_7ZIP_ST
++
++TARGET=libretro-common.a
++
++SOURCES_C += \
++	audio/conversion/float_to_s16.c \
++	audio/conversion/s16_to_float.c \
++	audio/resampler/audio_resampler.c \
++	audio/resampler/drivers/sinc_resampler.c \
++	compat/fopen_utf8.c \
++	compat/compat_posix_string.c \
++	compat/compat_strl.c \
++	compat/compat_snprintf.c \
++	compat/compat_strcasestr.c \
++	encodings/encoding_crc32.c \
++	encodings/encoding_utf.c \
++	features/features_cpu.c  \
++	file/config_file.c \
++	file/config_file_userdata.c \
++	file/file_path.c \
++	file/file_path_io.c \
++	file/retro_dirent.c \
++	formats/png/rpng.o \
++	libco/libco.c \
++	lists/dir_list.c \
++	lists/string_list.c \
++	memmap/memalign.c \
++	memmap/memmap.c \
++	streams/chd_stream.c \
++	streams/file_stream.c \
++	streams/file_stream_transforms.c \
++	streams/interface_stream.c \
++	streams/memory_stream.c \
++	streams/trans_stream.o \
++	streams/trans_stream_pipe.o \
++	streams/trans_stream_zlib.o \
++	string/stdstring.c \
++	time/rtime.c \
++	utils/md5.c \
++	vfs/vfs_implementation.c
++
++OBJECTS := $(SOURCES_C:.c=.o)
++
++all: $(TARGET)
++
++%.o: %.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++$(TARGET): $(OBJECTS)
++	$(AR) rcs $@ $(OBJECTS)
++
++clean:
++	rm -f $(TARGET) $(OBJECTS)
++
++.PHONY: clean
+diff --git a/encodings/encoding_utf.c b/encodings/encoding_utf.c
+index de42ea1..b71b19e 100644
+--- a/encodings/encoding_utf.c
++++ b/encodings/encoding_utf.c
+@@ -405,6 +405,7 @@ char *local_to_utf8_string_alloc(const char *str)
+ 	return NULL;
+ }
+ 
++#if !defined(SF2000)
+ /**
+  * utf8_to_utf16_string_alloc:
+  *
+@@ -525,3 +526,5 @@ char* utf16_to_utf8_string_alloc(const wchar_t *str)
+ 
+    return buf;
+ }
++
++#endif // !defined(SF2000)
+diff --git a/features/features_cpu.c b/features/features_cpu.c
+index a7176c5..eedebbc 100644
+--- a/features/features_cpu.c
++++ b/features/features_cpu.c
+@@ -253,6 +253,8 @@ retro_time_t cpu_features_get_time_usec(void)
+    return uclock() * 1000000LL / UCLOCKS_PER_SEC;
+ #elif defined(ORBIS)
+    return sceKernelGetProcessTime();
++#elif defined(SF2000)
++   return os_get_tick_count() * 1000;
+ #else
+ #error "Your platform does not have a timer function implemented in cpu_features_get_time_usec(). Cannot continue."
+ #endif
+@@ -579,6 +581,8 @@ unsigned cpu_features_get_core_amount(void)
+    return amount;
+ #elif defined(_XBOX360)
+    return 3;
++#elif defined(SF2000)
++   return 1;
+ #else
+    /* No idea, assume single core. */
+    return 1;
+diff --git a/include/memmap.h b/include/memmap.h
+index 8897877..2681b90 100644
+--- a/include/memmap.h
++++ b/include/memmap.h
+@@ -26,7 +26,7 @@
+ #include <stdio.h>
+ #include <stdint.h>
+ 
+-#if defined(PSP) || defined(PS2) || defined(GEKKO) || defined(VITA) || defined(_XBOX) || defined(_3DS) || defined(WIIU) || defined(SWITCH) || defined(HAVE_LIBNX) || defined(__PS3__) || defined(__PSL1GHT__)
++#if defined(PSP) || defined(PS2) || defined(GEKKO) || defined(VITA) || defined(_XBOX) || defined(_3DS) || defined(WIIU) || defined(SWITCH) || defined(HAVE_LIBNX) || defined(__PS3__) || defined(__PSL1GHT__) || defined(SF2000)
+ /* No mman available */
+ #elif defined(_WIN32) && !defined(_XBOX)
+ #include <windows.h>
+diff --git a/include/retro_timers.h b/include/retro_timers.h
+index 9604125..c6ad4cf 100644
+--- a/include/retro_timers.h
++++ b/include/retro_timers.h
+@@ -59,6 +59,20 @@
+ #endif
+ #include <retro_inline.h>
+ 
++#if defined(SF2000)
++extern int dly_tsk(unsigned ms);
++static int nanosleepSF2000(const struct timespec *rqtp, struct timespec *rmtp)
++{
++   dly_tsk(1000000L * rqtp->tv_sec + rqtp->tv_nsec / 1000);
++
++   if (rmtp)
++      rmtp->tv_sec = rmtp->tv_nsec=0;
++
++   return 0;
++}
++#define nanosleep nanosleepSF2000
++#endif
++
+ #ifdef DJGPP
+ #define timespec timeval
+ #define tv_nsec tv_usec
+diff --git a/libco/libco.c b/libco/libco.c
+index 44a65d5..790d869 100644
+--- a/libco/libco.c
++++ b/libco/libco.c
+@@ -37,6 +37,8 @@ void genode_free_secondary_stack(void *stack);
+     #include "scefiber.c"
+   #elif defined(__ARM_EABI__) || defined(__arm__)
+     #include "armeabi.c"
++  #elif defined(SF2000)
++    #include "sjlj_sf2000.c"
+   #else
+     #include "sjlj.c"
+   #endif
+diff --git a/libco/sjlj_sf2000.c b/libco/sjlj_sf2000.c
+new file mode 100644
+index 0000000..91ba12f
+--- /dev/null
++++ b/libco/sjlj_sf2000.c
+@@ -0,0 +1,103 @@
++
++#define LIBCO_C
++#include <libco.h>
++#include <stdlib.h>
++#include <setjmp.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++typedef struct
++{
++	jmp_buf context;
++	void (*coentry)(void);
++	char* stack;
++} cothread_context_t;
++
++static cothread_context_t co_primary = {0};
++static cothread_context_t *co_creating, *co_running = NULL;
++
++static void cothread_proc()
++{
++	// cothread will be created in a suspended state,
++	// so save the context and return immediately.
++	if (setjmp(co_creating->context) == 1)
++	{// execution will continue here after a call to co_switch
++		co_running->coentry();
++		// cothread should never exit!
++		abort();
++	}
++}
++
++cothread_t co_active(void)
++{
++	if (!co_running)
++		co_running = &co_primary;
++
++	return (cothread_t)co_running;
++}
++
++cothread_t co_create(unsigned int stacksize, void (*coentry)(void))
++{
++	if (!co_running)
++		co_running = &co_primary;
++
++	cothread_context_t *ctx = (cothread_context_t *)malloc(sizeof(cothread_context_t));
++	ctx->stack = malloc(stacksize);
++	ctx->coentry = coentry;
++
++	co_creating = ctx;
++
++	// these must be static because can't access local vars when the stack changes
++	static void* original_sp;
++	static void* modified_sp;
++	modified_sp = ctx->stack + stacksize;
++
++	// save the current stack pointer
++	asm volatile (
++		"move %0, $sp"
++		: "=r" (original_sp)
++	);
++
++	// set the stack for the new cothread
++	asm volatile (
++		"move $sp, %0"
++		:
++		: "r" (modified_sp)
++	);
++
++	// call cothread entry proc to only setup its context, but return immediately here.
++	// cothread's coentry function will actually begin its execution after specifically calling co_switch.
++	cothread_proc();
++
++	// restore the stack pointer to the original stack
++	asm volatile (
++		"move $sp, %0"
++		:
++		: "r" (original_sp)
++	);
++
++	return (cothread_t)ctx;
++}
++
++void co_delete(cothread_t cothread)
++{
++	cothread_context_t *ctx = (cothread_context_t *)cothread;
++	if (ctx->stack)
++		free(ctx->stack);
++	free(ctx);
++}
++
++void co_switch(cothread_t cothread)
++{
++	if (setjmp(co_running->context) == 0)
++	{
++		co_running = (cothread_context_t *)cothread;
++		longjmp(co_running->context, 1);
++	}
++}
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/memmap/memmap.c b/memmap/memmap.c
+index 35d9d6d..8996786 100644
+--- a/memmap/memmap.c
++++ b/memmap/memmap.c
+@@ -111,7 +111,11 @@ int mprotect(void *addr, size_t len, int prot)
+ void* mmap(void *addr, size_t len, int prot, int flags,
+       int fildes, size_t offset)
+ {
++#if !defined(SF2000)
+    return malloc(len);
++#else
++   return calloc(len, 1);
++#endif
+ }
+ 
+ int munmap(void *addr, size_t len)
+diff --git a/rthreads/rthreads.c b/rthreads/rthreads.c
+index bf071ab..8a913fd 100644
+--- a/rthreads/rthreads.c
++++ b/rthreads/rthreads.c
+@@ -158,7 +158,7 @@ sthread_t *sthread_create(void (*thread_func)(void*), void *userdata)
+ }
+ 
+ /* TODO/FIXME - this needs to be implemented for Switch/3DS */
+-#if !defined(SWITCH) && !defined(USE_WIN32_THREADS) && !defined(_3DS) && !defined(GEKKO) && !defined(__HAIKU__) && !defined(EMSCRIPTEN)
++#if !defined(SWITCH) && !defined(USE_WIN32_THREADS) && !defined(_3DS) && !defined(GEKKO) && !defined(__HAIKU__) && !defined(EMSCRIPTEN) && !defined(SF2000)
+ #define HAVE_THREAD_ATTR
+ #endif
+ 
+diff --git a/vfs/vfs_implementation.c b/vfs/vfs_implementation.c
+index efbbf50..d3263eb 100644
+--- a/vfs/vfs_implementation.c
++++ b/vfs/vfs_implementation.c
+@@ -213,7 +213,7 @@
+ #include <vfs/vfs_implementation_cdrom.h>
+ #endif
+ 
+-#if (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 200112) || (defined(__POSIX_VISIBLE) && __POSIX_VISIBLE >= 200112) || (defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112) || __USE_LARGEFILE || (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64)
++#if ((defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 200112) || (defined(__POSIX_VISIBLE) && __POSIX_VISIBLE >= 200112) || (defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112) || __USE_LARGEFILE || (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64)) && !defined(SF2000)
+ #ifndef HAVE_64BIT_OFFSETS
+ #define HAVE_64BIT_OFFSETS
+ #endif
+@@ -625,7 +625,7 @@ int64_t retro_vfs_file_truncate_impl(libretro_vfs_implementation_file *stream, i
+ 	   stream->size = len;
+ 	   return 0;
+    }
+-#elif !defined(VITA) && !defined(PSP) && !defined(PS2) && !defined(ORBIS) && (!defined(SWITCH) || defined(HAVE_LIBNX))
++#elif !defined(VITA) && !defined(PSP) && !defined(PS2) && !defined(ORBIS) && (!defined(SWITCH) || defined(HAVE_LIBNX)) && !defined(SF2000)
+    if (stream && ftruncate(fileno(stream->fp), (off_t)len) == 0)
+    {
+       stream->size = len;
+@@ -710,7 +710,11 @@ int64_t retro_vfs_file_read_impl(libretro_vfs_implementation_file *stream,
+ int64_t retro_vfs_file_write_impl(libretro_vfs_implementation_file *stream, const void *s, uint64_t len)
+ {
+    int64_t pos    = 0;
++#if defined(SF2000)
++   size_t result = -1;
++#else
+    ssize_t result = -1;
++#endif
+ 
+    if (!stream)
+       return -1;
+@@ -845,9 +849,11 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
+ const char *retro_vfs_file_get_path_impl(
+       libretro_vfs_implementation_file *stream)
+ {
++#ifndef SF2000
+    /* should never happen, do something noisy so caller can be fixed */
+    if (!stream)
+       abort();
++#endif
+    return stream->orig_path;
+ }
+ 

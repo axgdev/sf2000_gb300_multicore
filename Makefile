@@ -31,12 +31,6 @@ endif
 ifeq ($(DEBUG_XLOG), 1)
 CFLAGS += -DDEBUG_XLOG=1
 endif
-ifeq ($(CONSOLE), dblcherrygb)
-CFLAGS += -DDBLCHERRY_SAVE
-CORE_OBJS=core_api_dbl_chr.o 
-else
-CORE_OBJS=core_api.o 
-endif
 
 LDFLAGS := -EL -nostdlib -z max-page-size=32
 LDFLAGS += --gc-sections
@@ -47,160 +41,116 @@ CXX_LDFLAGS := -EL -march=mips32 -mtune=mips32 -msoft-float
 CXX_LDFLAGS += -Wl,--gc-sections --static
 CXX_LDFLAGS += -z max-page-size=32
 
-CORE_OBJS += lib.o debug.o video_sf2000.o
-LOADER_OBJS=init.o main.o debug.o
+# Set build directory
+BUILD_DIR := build
 
-# CORE=cores/cannonball
-# CONSOLE=outrun
+# Source and object file locations
+SRC_DIR := src
+LD_DIR := linker_scripts
+SCRIPTS_DIR := scripts
 
-#CORE=cores/ecwolf/src/libretro
-#CONSOLE=ecwolf
-
-# CORE=cores/fake-08/platform/libretro
-# CONSOLE=fake8
-
-# CORE=cores/caprice32
-# CONSOLE=cap32
-
-# CORE=cores/prboom
-# CONSOLE=prboom
-
-# CORE=cores/mame2000
-# CONSOLE=m2k
-
-# CORE=cores/vice
-# CONSOLE=vic20
-# CONSOLE=c64
-
-# CORE=cores/2048
-# MAKEFILE=-f Makefile.libretro
-# CONSOLE=2048
-
-# CORE=cores/lowres-nx/platform/LibRetro
-# CONSOLE=lownx
-
-# CORE=cores/stella2014
-# CONSOLE=a26
-
-# CORE=cores/atari5200
-# CONSOLE=a52
-
-# CORE=cores/atari800
-# CONSOLE=a800
-
-# CORE=cores/beetle-pce-fast
-# CONSOLE=pce
-
-# CORE=cores/beetle-supergrafx
-# CONSOLE=pcesgx
-
-# CORE=cores/gambatte
-# CORE=cores/tgbdual
-# CONSOLE=gb
-
-#CORE=cores/gpsp
-#CONSOLE=gba
-
-# CORE=cores/snes9x2005
-# CONSOLE=snes
+# Update object and output file locations
+CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
+LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
 
 # Default target
 ifneq ($(CORE),)
-all: core_87000000 bisrv.asd install
+all: $(BUILD_DIR)/core_87000000 $(BUILD_DIR)/bisrv.asd install
 else
-all: bisrv.asd install
+all: $(BUILD_DIR)/bisrv.asd install
 endif
 
-%.o: %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+# Ensure build directory exists
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
 
-%.o: %.s
-	$(CC) $(CFLAGS) -o $@ -c $<
+# Compile C source files from src/ to build/
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $(BUILD_DIR)/$*.o -c $(SRC_DIR)/$*.c
 
-core_api_dbl_chr.o: core_api.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+# Assemble .s source files from src/ to build/
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.s | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $(BUILD_DIR)/$*.o -c $(SRC_DIR)/$*.s
 
 libretro_core:
 	@$(call echo_i,"compiling $(CORE)")
 	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) platform=sf2000
 
-libretro_core.a: libretro_core
-	cp $(CORE)/*.a libretro_core.a
+$(BUILD_DIR)/libretro_core.a: libretro_core | $(BUILD_DIR)
+	cp $(CORE)/*.a $(BUILD_DIR)/libretro_core.a
 
 libretro-common:
 	@$(call echo_i,"compiling $@")
 	$(MAKE) -j$(NPROC) -C libs/libretro-common
 
-libretro-common.a: libretro-common
-	cp -u libs/libretro-common/$@ $@
+$(BUILD_DIR)/libretro-common.a: libretro-common | $(BUILD_DIR)
+	cp -u libs/libretro-common/libretro-common.a $(BUILD_DIR)/libretro-common.a
 
-core.elf: libretro_core.a libretro-common.a $(CORE_OBJS)
+$(BUILD_DIR)/core.elf: $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -Tcore.ld bisrv_08_03-core.ld -o $@ \
-		-Wl,--start-group $(CORE_OBJS) libretro_core.a libretro-common.a -lc -Wl,--end-group
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld $(LD_DIR)/bisrv_08_03-core.ld -o $@ \
+		-Wl,--start-group $(CORE_OBJS) $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a -lc -Wl,--end-group
 
-core_87000000: core.elf
-	$(OBJCOPY) -O binary -R .MIPS.abiflags -R .note.gnu.build-id -R ".rel*" core.elf core_87000000
+$(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
+	$(OBJCOPY) -O binary -R .MIPS.abiflags -R .note.gnu.build-id -R ".rel*" $(BUILD_DIR)/core.elf $(BUILD_DIR)/core_87000000
 
-loader.elf: $(LOADER_OBJS)
-	@$(call echo_i,"compiling $@")
-	$(LD) -Map $@.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) bisrv_08_03.ld $(LOADER_OBJS) -o loader.elf
+$(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
+	@$(call echo_i,"compiling $(BUILD_DIR)/loader.elf")
+	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
 
-loader.bin: loader.elf
-	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data loader.elf loader.bin
+$(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
+	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
 
-bisrv.asd: loader.bin lcd_font.bin crc
-	@$(call echo_i,"patching $@")
+$(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUILD_DIR)/crc
+	@$(call echo_i,"patching $(BUILD_DIR)/bisrv.asd")
 
 # check that loader's .bss does not exceeds LOADER_ADDR_MAX
-	@BSSEND=$(shell grep -w "_end =" loader.elf.map | awk '{print $$1}'); \
+	@BSSEND=$(shell grep -w "_end =" $(BUILD_DIR)/loader.elf.map | awk '{print $$1}'); \
 	if [ $$(($${BSSEND})) -gt $$(($(LOADER_ADDR_MAX))) ]; then \
-		$(call echo_e,"error: loader is too big. \
-		bss ending $${BSSEND} exceeds $(LOADER_ADDR_MAX) by \
-		$$(( $${BSSEND} - $(LOADER_ADDR_MAX) )) bytes") ; \
+		$(call echo_e,"error: loader is too big. \\n		bss ending $${BSSEND} exceeds $(LOADER_ADDR_MAX) by \\n		$$(( $${BSSEND} - $(LOADER_ADDR_MAX) )) bytes") ; \
 		exit 1; \
 	else \
 		echo "bss ending $${BSSEND}. still $$(( $(LOADER_ADDR_MAX) - $${BSSEND} )) bytes left" ; \
 	fi
 
 # check that lcd_font.bin has the anticipated size
-	@LCDFONT_SIZE=$(shell stat -c %s lcd_font.bin) ; \
+	@LCDFONT_SIZE=$(shell stat -c %s $(BUILD_DIR)/lcd_font.bin) ; \
 	if [ $${LCDFONT_SIZE} -ne 672 ]; then \
 		$(call echo_e,"error: lcd_font.bin size $${LCDFONT_SIZE}. should be 672") ; \
 		exit 1; \
 	fi
 
-	$(Q)cp bisrv_08_03.asd bisrv.asd
+	$(Q)cp bisrv_08_03.asd $(BUILD_DIR)/bisrv.asd
 
-	$(Q)dd if=loader.bin of=bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
+	$(Q)dd if=$(BUILD_DIR)/loader.bin of=$(BUILD_DIR)/bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 
-	dd if=lcd_font.bin of=bisrv.asd bs=$$(($(LCDFONT_OFFSET))) seek=1 conv=notrunc
+	dd if=$(BUILD_DIR)/lcd_font.bin of=$(BUILD_DIR)/bisrv.asd bs=$$(($(LCDFONT_OFFSET))) seek=1 conv=notrunc
 
 	# note: this patch must match $(LOADER_ADDR)
 	# jal run_gba -> jal 0x80001500
-	printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc
+	printf "\x40\x05\x00\x0C" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc
 
 	# endless loop in sys_watchdog_reboot -> j 0x80001508
-	printf "\x42\x05\x00\x08" | dd of=bisrv.asd bs=1 seek=$$((0x30d4)) conv=notrunc
+	printf "\x42\x05\x00\x08" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x30d4)) conv=notrunc
 	# endless loop in INT_General_Exception_Hdlr -> j 0x80001510
-	printf "\x44\x05\x00\x08" | dd of=bisrv.asd bs=1 seek=$$((0x495a0)) conv=notrunc
+	printf "\x44\x05\x00\x08" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x495a0)) conv=notrunc
 
 	# patch the buffer size for handling the save state snapshot image
 	# \x0c (768k) would be enough up to cores displaying at 640x480x2
-	printf "\x0c" | dd of=bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc
+	printf "\x0c" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc
 
-	$(Q)./crc bisrv.asd
+	$(Q)$(BUILD_DIR)/crc $(BUILD_DIR)/bisrv.asd
 
-lcd_font.bin: lcd_font.o
-	$(OBJCOPY) -O binary -j ".rodata.lcd_font" $< $@
+$(BUILD_DIR)/lcd_font.bin: $(BUILD_DIR)/lcd_font.o
+	$(OBJCOPY) -O binary -j ".rodata.lcd_font" $(BUILD_DIR)/lcd_font.o $(BUILD_DIR)/lcd_font.bin
 
-crc: crc.c
-	gcc -o crc crc.c
+$(BUILD_DIR)/crc: $(SRC_DIR)/crc.c | $(BUILD_DIR)
+	gcc -o $(BUILD_DIR)/crc $(SRC_DIR)/crc.c
 
 install:
 	@$(call echo_i,"install to sdcard")
-	-$(call copy_if_updated,bisrv.asd,sdcard/bios/bisrv.asd)
-	-$(call copy_if_updated,core_87000000,sdcard/cores/$(CONSOLE)/core_87000000)
+	-$(call copy_if_updated,$(BUILD_DIR)/bisrv.asd,sdcard/bios/bisrv.asd)
+	-$(call copy_if_updated,$(BUILD_DIR)/core_87000000,sdcard/cores/$(CONSOLE)/core_87000000)
 	# -rm -f sdcard/log.txt
 	@$(call echo_d,"bisrv.asd")
 	@$(call echo_d,"$(CORE)")
@@ -217,25 +167,23 @@ endif
 
 # Clean intermediate files and the final executable
 clean:
-	-rm -f $(CORE_OBJS)
-	-rm -f $(LOADER_OBJS) lcd_font.o
-	-rm -f loader.elf loader.bin core.elf core.elf.map core_87000000
-	-rm -f bisrv.asd crc
-	-rm -f libretro_core.a
+	-rm -rf $(BUILD_DIR)
+ifneq ($(CORE),)
 	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) clean platform=sf2000
+endif
 
 .PHONY: all clean
 
 define echo_i
-    echo -e "\033[1;33m$(1)\033[0m"
+	echo -e "\033[1;33m$(1)\033[0m"
 endef
 
 define echo_e
-    echo -e "\033[1;31m$(1)\033[0m"
+	echo -e "\033[1;31m$(1)\033[0m"
 endef
 
 define echo_d
-    echo -e "\033[1;37m$(1)\033[0m"
+	echo -e "\033[1;37m$(1)\033[0m"
 endef
 
 define copy_if_updated
