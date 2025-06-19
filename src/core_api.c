@@ -225,7 +225,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	s_game_filepath = info->path;
 
 	char config_game_filepath[MAXPATH];
-	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath,sysinfo.library_name);
+	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath, sysinfo.library_name);
 
 	// load per game options
 	config_add_file(config_game_filepath);
