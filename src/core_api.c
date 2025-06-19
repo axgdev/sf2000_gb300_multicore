@@ -15,8 +15,8 @@
 
 #define MAXPATH 	255
 #define SYSTEM_DIRECTORY	"/mnt/sda1/bios"
-#define SAVE_DIRECTORY		"/mnt/sda1/saves"
-#define CONFIG_DIRECTORY	"/mnt/sda1/configs"
+#define SAVE_DIRECTORY		"/mnt/sda1/ROMS/save"
+#define CONFIG_DIRECTORY	"/mnt/sda1/cores/config"
 
 static config_file_t *s_core_config = NULL;
 static void config_load();
@@ -53,8 +53,7 @@ static int16_t wrap_input_state_cb(unsigned port, unsigned device, unsigned inde
 
 static bool g_show_fps = false;
 static void frameskip_cb(BOOL flag);
-static bool g_per_state_srm = false;
-static bool g_per_core_srm = false;
+static bool g_per_state_srm = true;
 
 static void dummy_retro_run(void);
 
@@ -92,25 +91,25 @@ struct retro_core_t core_exports = {
    .retro_get_memory_size = retro_get_memory_size,
 };
 
-void build_srm_filepath(char *filepath, size_t size, const char *game_filepath, const char *extension, size_t extension_size) {
-	char basename[MAXPATH];
-	fill_pathname_base(basename, game_filepath, sizeof(basename));
-	path_remove_extension(basename);
-	if(g_per_core_srm){
-		struct retro_system_info sysinfo;
-		retro_get_system_info(&sysinfo);
-		snprintf(filepath, size, "%s/%s/%s.%s", SAVE_DIRECTORY, sysinfo.library_name, basename, extension);
-	} else {
-		snprintf(filepath, size, "%s/%s.%s", SAVE_DIRECTORY, basename, extension);
-	}
+void build_rom_filepath(
+	char *filepath, size_t size,
+	const char *game_filepath,
+	const char *extension,
+	size_t extension_size)
+{
+	char temp[size];
+	strncpy(temp, game_filepath, size);
+	temp[size-(2 + extension_size)]=0;
+	char * p = strrchr(temp, '.');
+	if(p) *p = 0;
+	snprintf(filepath, size, "%s.%s", temp, extension);
 }
 
 void save_srm(const char slot){
 	char ram_filepath[MAXPATH];
 	char ext[5];
 	snprintf(ext, 5, "srm%c", slot);
-	build_srm_filepath(ram_filepath, sizeof(ram_filepath), s_game_filepath, ext, 4);
-	xlog("save_srm: file=%s\n", ram_filepath);
+	build_rom_filepath(ram_filepath, sizeof(ram_filepath), s_game_filepath, ext, 4);
 	size_t save_size = retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
 	if(save_size == 0)
 		return;
@@ -127,8 +126,7 @@ void load_srm(const char slot){
 	char ram_filepath[MAXPATH];
 	char ext[5];
 	snprintf(ext, 5, "srm%c", slot);
-	build_srm_filepath(ram_filepath, sizeof(ram_filepath), s_game_filepath, ext, 4);
-	xlog("load_srm: file=%s\n", ram_filepath);
+	build_rom_filepath(ram_filepath, sizeof(ram_filepath), s_game_filepath, ext, 4);
 	FILE *ram_file = fopen(ram_filepath, "rb");
 	if (!ram_file)
 		return;
@@ -227,7 +225,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	s_game_filepath = info->path;
 
 	char config_game_filepath[MAXPATH];
-	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath, sysinfo.library_name);
+	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath,sysinfo.library_name);
 
 	// load per game options
 	config_add_file(config_game_filepath);
@@ -295,14 +293,10 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 
 		// show FPS?
 		config_get_bool(s_core_config, "sf2000_show_fps", &g_show_fps);
-		fps_counter_enable(g_show_fps);
-
-		// per state srm?
 		config_get_bool(s_core_config, "sf2000_per_state_srm", &g_per_state_srm);
 
-		// per core srm?
-		config_get_bool(s_core_config, "sf2000_per_core_srm", &g_per_core_srm);
-		
+		fps_counter_enable(g_show_fps);
+
 		// make sure the first two controllers are configured as gamepads
 		retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
 		retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
@@ -446,22 +440,10 @@ void log_cb(enum retro_log_level level, const char *fmt, ...)
 
 char build_state_filepath(char *state_filepath, size_t size, const char *game_filepath, const char *frontend_state_filepath)
 {
-//	"/mnt/sda1/ROMS/pce/Alien Crush.pce"	->
-//	"/mnt/sda1/saves/savestates/[core]/Alien Crush.state[slot]"
-	struct retro_system_info sysinfo;
-	retro_get_system_info(&sysinfo);
-
-	// last char is the save slot number
 	char save_slot = frontend_state_filepath[strlen(frontend_state_filepath) - 1];
-
-	char basename[MAXPATH];
-	fill_pathname_base(basename, game_filepath, sizeof(basename));
-	path_remove_extension(basename);
-	if(g_per_core_srm){
-	snprintf(state_filepath, size, "%s/%s/%s.state%c", SAVE_DIRECTORY, sysinfo.library_name, basename, save_slot);
-	} else {
-	snprintf(state_filepath, size, "%s/savestates/%s/%s.state%c", SAVE_DIRECTORY, sysinfo.library_name, basename, save_slot);
-	}
+	char ext[7];
+	snprintf(ext, 7, "state%c", save_slot);
+	build_rom_filepath(state_filepath, size, game_filepath, ext, 6);
 	return save_slot;
 }
 
@@ -528,7 +510,7 @@ void build_game_config_filepath(char *filepath, size_t size, const char *game_fi
 	fill_pathname_base(basename, game_filepath, sizeof(basename));
 	path_remove_extension(basename);
 
-	snprintf(filepath, size, "%s/%s/options/%s.opt", CONFIG_DIRECTORY, library_name, basename);
+	snprintf(filepath, size, CONFIG_DIRECTORY "/%s/%s.opt",library_name, basename);
 }
 
 void build_core_config_filepath(char *filepath, size_t size)
@@ -536,7 +518,7 @@ void build_core_config_filepath(char *filepath, size_t size)
 	struct retro_system_info sysinfo;
 	retro_get_system_info(&sysinfo);
 
-	snprintf(filepath, size, "%s/%s/%s.opt", CONFIG_DIRECTORY, sysinfo.library_name, sysinfo.library_name);
+	snprintf(filepath, size, CONFIG_DIRECTORY "/%s.opt", sysinfo.library_name);
 }
 
 void config_add_file(const char *filepath)
