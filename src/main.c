@@ -12,6 +12,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "core_api.h"
 #include "stockfw.h"
 #include "debug.h"
+#include "hal_api.h"
 
 static void init_once();
 static void full_cache_flush();
@@ -58,13 +59,13 @@ void load_and_run_core(const char *file_path, int load_state)
 {
 	init_once();
 
-	xlog("l: run file=%s\n", file_path);
+	// xlog("l: run file=%s\n", file_path);
 
 	// the expected template for file_path is - [corename];[rom filename].gba
 	const char *corename;
 	const char *filename;
 	if (!parse_filename(file_path, &corename, &filename)) {
-		xlog("file not MC stub: calling run_gba\n");
+		// xlog("file not MC stub: calling run_gba\n");
 		dbg_show_noblock(0x00, "\n STOCK\n\n %s\n\n ", file_path); // black
 		run_gba(file_path, load_state);
 		return;
@@ -82,7 +83,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	/* wait for the sound thread to exit, replicated in all run_... functions */
 	g_snd_task_flags = g_snd_task_flags & 0xfffe;
 	while (g_snd_task_flags != 0) {
-		dly_tsk(1);
+		HAL(dly_tsk)(1);
 	}
 
 	/* FIXME! all of it!! */
@@ -91,12 +92,12 @@ void load_and_run_core(const char *file_path, int load_state)
 	snprintf(corefile, MAXPATH, "/mnt/sda1/cores/%s/core_87000000", corename);
 	snprintf(romfile, MAXPATH, "/mnt/sda1/ROMS/%s/%s", corename, filename);
 
-	xlog("corefile=%s\n", corefile);
-	xlog("romfile=%s\n", romfile);
+	// xlog("corefile=%s\n", corefile);
+	// xlog("romfile=%s\n", romfile);
 
 	pf = fopen(corefile, "rb");
 	if (!pf) {
-		xlog("Error opening corefile\n");
+		// xlog("Error opening corefile\n");
 		return;
 	}
 
@@ -106,7 +107,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	fw_fread(core_load_addr, 1, core_size, pf);
 	fclose(pf);
 
-	xlog("l: core loaded\n");
+	// xlog("l: core loaded\n");
 
 	full_cache_flush();
 
@@ -193,6 +194,9 @@ static void init_once()
 		return;
 
 	first_call = false;
+
+	// Initialize our HAL to detect the platform and load function pointers
+	hal_init();
 
 	clear_bss();
 	lcd_init();

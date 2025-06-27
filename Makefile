@@ -13,6 +13,10 @@ LOADER_OFFSET=0x1500
 LOADER_ADDR=0x80001500
 LOADER_ADDR_MAX=0x80002180
 
+# other block
+# LOADER_ADDR=0x807D47A4
+# LOADER_ADDR_MAX=0x807D57B0
+
 MIPS=/opt/mips32-mti-elf/2019.09-03-2/bin/mips-mti-elf-
 
 CC = $(MIPS)gcc
@@ -51,7 +55,7 @@ SCRIPTS_DIR := scripts
 
 # Update object and output file locations
 CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
-LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+LOADER_OBJS := $(addprefix $(BUILD_DIR)/,hal_api.o init.o main.o debug.o)
 
 # Default target
 ifneq ($(CORE),)
