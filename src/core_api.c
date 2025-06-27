@@ -57,10 +57,10 @@ static bool g_per_state_srm = true;
 
 static void dummy_retro_run(void);
 
-static int *fw_fps_counter_enable = 0x80c0b5e0;
-static int *fw_fps_counter = 0x80c0b5dc;
-static char *fw_fps_counter_format = 0x8099bdf0;	// "%2d/%2d"
 static void fps_counter_enable(bool enable);
+
+void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, char library_name);
+void config_add_file(const char *filepath);
 
 
 struct retro_core_t core_exports = {
@@ -146,7 +146,7 @@ void load_srm(const char slot){
 
 void wrap_retro_unload_game(void){
 	save_srm(0);
-	g_stock_api.retro_unload_game();
+	(*g_stock_api.gfn_retro_unload_game)();
 }
 
 static void clear_bss()
@@ -217,7 +217,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 {
 	bool ret;
 	struct retro_system_info sysinfo;
-	g_stock_api.retro_get_system_info(&sysinfo);
+	retro_get_system_info(&sysinfo);
 
 	xlog("core=%s-%s need_fullpath=%d exts=%s\n", sysinfo.library_name, sysinfo.library_version, sysinfo.need_fullpath, sysinfo.valid_extensions);
 
@@ -237,17 +237,17 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	*g_stock_api.gfn_frameskip = NULL;
 
 	// install custom input handler to filter out all requests for non-joypad devices
-	g_stock_api.retro_set_input_state(wrap_input_state_cb);
+	retro_set_input_state(wrap_input_state_cb);
 
 	// intercept audio output to mix stereo into mono
-	g_stock_api.retro_set_audio_sample(mono_mix_audio_sample_cb);
-	g_stock_api.retro_set_audio_sample_batch(mono_mix_audio_batch_cb);
+	retro_set_audio_sample(mono_mix_audio_sample_cb);
+	retro_set_audio_sample_batch(mono_mix_audio_batch_cb);
 
 	// if core wants to load the content by itself directly from files, then let it
 	if (sysinfo.need_fullpath)
 	{
 		xlog("core loads content directly from file\n");
-		ret = g_stock_api.retro_load_game(info);
+		ret = retro_load_game(info);
 	}
 	else
 	{
@@ -275,7 +275,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 
 		xlog("game loaded into temp buffer. size=%u\n", size);
 
-		ret = g_stock_api.retro_load_game(&gameinfo);
+		ret = retro_load_game(&gameinfo);
 
 		g_stock_api.free(buffer);
 	}
@@ -298,8 +298,8 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 		fps_counter_enable(g_show_fps);
 
 		// make sure the first two controllers are configured as gamepads
-		g_stock_api.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
-		g_stock_api.retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
+		retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
+		retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
 
 		load_srm(0);
 	}
@@ -309,7 +309,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 
 void wrap_retro_set_environment(retro_environment_t cb)
 {
-	g_stock_api.retro_set_environment(wrap_environ_cb);
+	retro_set_environment(wrap_environ_cb);
 }
 
 bool wrap_environ_cb(unsigned cmd, void *data)
@@ -400,7 +400,7 @@ bool wrap_environ_cb(unsigned cmd, void *data)
 			return true;
 		}
 	}
-	return g_stock_api.retro_environment_cb(cmd, data);
+	return retro_environment_cb(cmd, data);
 }
 
 void log_cb(enum retro_log_level level, const char *fmt, ...)
@@ -466,7 +466,7 @@ int state_load(const char *frontend_state_filepath)
 	g_stock_api.fw_fread(data, 1, size, file);
 	g_stock_api.fclose(file);
 
-	g_stock_api.retro_unserialize(data, size);
+	retro_unserialize(data, size);
 
 	g_stock_api.free(data);
 
@@ -486,10 +486,10 @@ int state_save(const char *frontend_state_filepath)
 	if (!file)
 		return 0;
 
-	size_t size = g_stock_api.retro_serialize_size();
+	size_t size = retro_serialize_size();
 	void *data = g_stock_api.calloc(size, 1);
 
-	g_stock_api.retro_serialize(data, size);
+	retro_serialize(data, size);
 
 	g_stock_api.fwrite(data, size, 1, file);
 	g_stock_api.fclose(file);
@@ -562,7 +562,7 @@ bool config_get_var(struct retro_variable *var)
 void wrap_retro_init(void)
 {
 	config_load();
-	g_stock_api.retro_init();
+	retro_init();
 }
 
 void wrap_retro_deinit(void)
@@ -570,7 +570,7 @@ void wrap_retro_deinit(void)
 	if (g_show_fps)
 		fps_counter_enable(false);
 	video_cleanup();
-	g_stock_api.retro_deinit();
+	retro_deinit();
 	config_free();
 
 	if (s_rgb565_convert_buffer)
@@ -633,7 +633,8 @@ static void enable_xrgb8888_support()
 	xlog("support for XRGB8888 enabled\n");
 
 	struct retro_system_av_info av_info;
-	g_stock_api.retro_get_system_av_info(&av_info);
+	retro_get_system_av_info(&av_info);
+
 
 	s_rgb565_convert_buffer = (uint16_t*)g_stock_api.malloc(av_info.geometry.max_width * av_info.geometry.max_height * sizeof(uint16_t));
 
@@ -647,7 +648,7 @@ static void enable_xrgb8888_support()
 static int16_t wrap_input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id)
 {
 	if ((port == 0 || port == 1) && (device == RETRO_DEVICE_JOYPAD))
-		return g_stock_api.retro_input_state_cb(port, device, index, id);
+		return retro_input_state_cb(port, device, index, id);
 	else
 		return 0;
 }
@@ -667,16 +668,16 @@ static void fps_counter_enable(bool enable)
 {
 	if (enable)
 	{
-		*fw_fps_counter_enable = 1;
-		g_stock_api.retro_set_video_refresh(wrap_video_refresh_cb);
+		*g_stock_api.fw_fps_counter_enable = 1;
+		retro_set_video_refresh(wrap_video_refresh_cb);
 	}
 	else
 	{
-		*fw_fps_counter_enable = 0;
+		*g_stock_api.fw_fps_counter_enable = 0;
 		if (g_xrgb888)
-			g_stock_api.retro_set_video_refresh(xrgb8888_video_refresh_cb);
+			retro_set_video_refresh(xrgb8888_video_refresh_cb);
 		else
-			g_stock_api.retro_set_video_refresh(g_stock_api.retro_video_refresh_cb);
+			retro_set_video_refresh(retro_video_refresh_cb);
 	}
 }
 
@@ -699,7 +700,7 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 		// *fw_fps_counter1 = count_not_skipped / sec;
 		// fps_counter2 = count_all / sec;
 
-		g_stock_api.sprintf(fw_fps_counter_format, "%2d/%2d", count_not_skipped, count_all);
+		g_stock_api.sprintf(*g_stock_api.fw_fps_counter_format, "%2d/%2d", count_not_skipped, count_all);
 
 		prev_msec = curr_msec;
 		count_all = 0;
@@ -709,9 +710,9 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 	if (g_xrgb888)
 	{
 		convert_xrgb8888_to_rgb565((void*)data, width, height, pitch);
-		g_stock_api.retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
+		retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
 	}
 	else {
-		g_stock_api.retro_video_refresh_cb(data, width, height, pitch);
+		retro_video_refresh_cb(data, width, height, pitch);
 	}
 }

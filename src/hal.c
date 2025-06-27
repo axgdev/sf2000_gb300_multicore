@@ -147,6 +147,11 @@ void hal_init(void) {
     g_stock_api.gp_buf_64m = (void*)GP_BUF_64M_ADDR;
     g_stock_api._ctype_ = (void*)_CTYPE__ADDR;
 
+    // FPS Counter variables
+    g_stock_api.fw_fps_counter_enable = (void*)FW_FPS_COUNTER_ENABLE_ADDR;
+    g_stock_api.fw_fps_counter = (void*)FW_FPS_COUNTER_ADDR;
+    g_stock_api.fw_fps_counter_format = (void*)FW_FPS_COUNTER_FORMAT_ADDR;
+
     // Hardware registers
     g_stock_api.PINMUXL = (void*)PINMUXL_ADDR;
     g_stock_api.PINMUXT = (void*)PINMUXT_ADDR;

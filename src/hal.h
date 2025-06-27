@@ -144,6 +144,11 @@ typedef struct {
     void **gp_buf_64m;
     unsigned char **_ctype_;
 
+    // FPS Counter variables
+    int **fw_fps_counter_enable;
+    int **fw_fps_counter;
+    char **fw_fps_counter_format;
+
     // Hardware registers
     volatile unsigned *PINMUXL;
     volatile unsigned *PINMUXT;

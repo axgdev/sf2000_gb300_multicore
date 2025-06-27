@@ -144,4 +144,9 @@
 #define GPIOTCTRL_ADDR 0xb8800344
 #define LCD_FONT_ADDR 0x80002260
 
+// FPS Counter addresses
+#define FW_FPS_COUNTER_ENABLE_ADDR 0x80c0b5e0
+#define FW_FPS_COUNTER_ADDR 0x80c0b5dc
+#define FW_FPS_COUNTER_FORMAT_ADDR 0x8099bdf0
+
 #endif

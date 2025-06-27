@@ -5,9 +5,15 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
+#include <ctype.h>
+#include <math.h>
 #include "debug.h"
 #include "hal.h"
 #include "dirent.h"
+#include <time.h>
+#include <ctype.h>
+#include <math.h>
 
 // NOTE: cache flushing for a specific memory range is currently not stable!
 /*
@@ -58,6 +64,64 @@ extern int g_errno;
 extern void (*__xlog)(const char *fmt, ...);
 // #define __xlog(...)
 
+// Memory Allocation
+void *malloc(size_t size) { return g_stock_api.malloc(size); }
+void free(void *ptr) { g_stock_api.free(ptr); }
+void *realloc(void *ptr, size_t size) { return g_stock_api.realloc(ptr, size); }
+void *calloc(size_t nmemb, size_t size) { return g_stock_api.calloc(nmemb, size); }
+
+void *sbrk(ptrdiff_t incr);
+
+// String Manipulation
+int strcat(char *dest, const char *src) { return g_stock_api.strcat(dest, src); }
+int strncmp(const char *s1, const char *s2, size_t n) { return g_stock_api.strncmp(s1, s2, n); }
+char *strncpy(char *dest, const char *src, size_t n) { return g_stock_api.strncpy(dest, src, n); }
+char *strchr(const char *s, int c) { return g_stock_api.strchr(s, c); }
+char *strrchr(const char *s, int c) { return g_stock_api.strrchr(s, c); }
+char *strstr(const char *haystack, const char *needle) { return g_stock_api.strstr(haystack, needle); }
+int strcasecmp(const char *s1, const char *s2) { return g_stock_api.strcasecmp(s1, s2); }
+int strncasecmp(const char *s1, const char *s2, size_t n) { return g_stock_api.strncasecmp(s1, s2, n); }
+void *memchr(const void *s, int c, size_t n) { return g_stock_api.memchr(s, c, n); }
+void *memcpy(void *dest, const void *src, size_t n) { return g_stock_api.memcpy(dest, src, n); }
+void *memset(void *s, int c, size_t n) { return g_stock_api.memset(s, c, n); }
+int memcmp(const void *s1, const void *s2, size_t n) { return g_stock_api.memcmp(s1, s2, n); }
+void *memmove(void *dest, const void *src, size_t n) { return g_stock_api.memmove(dest, src, n); }
+char *strcpy(char *dest, const char *src) { return g_stock_api.strcpy(dest, src); }
+int strcmp(const char *s1, const char *s2) { return g_stock_api.strcmp(s1, s2); }
+size_t strlen(const char *s) { return g_stock_api.strlen(s); }
+char *strdup(const char *s) { return g_stock_api.strdup(s); }
+
+// Character Classification/Conversion
+int tolower(int c) { return g_stock_api.tolower(c); }
+int toupper(int c) { return g_stock_api.toupper(c); }
+int isalnum(int c) { return g_stock_api.isalnum(c); }
+int isalpha(int c) { return g_stock_api.isalpha(c); }
+int isascii(int c) { return g_stock_api.isascii(c); }
+int iscntrl(int c) { return g_stock_api.iscntrl(c); }
+int isdigit(int c) { return g_stock_api.isdigit(c); }
+int isgraph(int c) { return g_stock_api.isgraph(c); }
+int islower(int c) { return g_stock_api.islower(c); }
+int isprint(int c) { return g_stock_api.isprint(c); }
+int ispunct(int c) { return g_stock_api.ispunct(c); }
+int isspace(int c) { return g_stock_api.isspace(c); }
+int isupper(int c) { return g_stock_api.isupper(c); }
+int isxdigit(int c) { return g_stock_api.isxdigit(c); }
+int toascii(int c) { return g_stock_api.toascii(c); }
+int _tolower(int c) { return g_stock_api._tolower(c); }
+int _toupper(int c) { return g_stock_api._toupper(c); }
+
+// Numeric Conversion
+long int strtol(const char *nptr, char **endptr, int base) { return g_stock_api.strtol(nptr, endptr, base); }
+unsigned long int strtoul(const char *nptr, char **endptr, int base) { return g_stock_api.strtoul(nptr, endptr, base); }
+double strtod(const char *nptr, char **endptr) { return g_stock_api.strtod(nptr, endptr); }
+int atoi(const char *nptr) { return g_stock_api.atoi(nptr); }
+
+// Memory Allocation
+void *malloc(size_t size) { return g_stock_api.malloc(size); }
+void free(void *ptr) { return g_stock_api.free(ptr); }
+void *realloc(void *ptr, size_t size) { return g_stock_api.realloc(ptr, size); }
+void *calloc(size_t nmemb, size_t size) { return g_stock_api.calloc(nmemb, size); }
+
 void *sbrk(ptrdiff_t incr)
 {
 	static void *s_heap_end;
@@ -76,10 +140,166 @@ void *sbrk(ptrdiff_t incr)
 
 	s_heap_ptr = new_ptr;
 
-// __xlog("sbrk: ret=%p incr=%d s_heap_ptr=%p\n", curr_ptr, (int)incr, s_heap_ptr);
+// __xlog("sbrk: ret=%p incr=%d s_heap_ptr=%p
+", curr_ptr, (int)incr, s_heap_ptr);
 	
 	return curr_ptr;
 }
+
+// Formatted I/O
+int vsnprintf(char *str, size_t size, const char *format, va_list ap) { return g_stock_api.vsnprintf(str, size, format, ap); }
+int sprintf(char *str, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsprintf(str, format, args);
+    va_end(args);
+    return ret;
+}
+int vprintf(const char *format, va_list ap) { return g_stock_api.vprintf(format, ap); }
+int printf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vprintf(format, args);
+    va_end(args);
+    return ret;
+}
+int snprintf(char *str, size_t size, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsnprintf(str, size, format, args);
+    va_end(args);
+    return ret;
+}
+int vsprintf(char *str, const char *format, va_list ap) { return g_stock_api.vsprintf(str, format, ap); }
+int vsscanf(const char *str, const char *format, va_list ap) { return g_stock_api.vsscanf(str, format, ap); }
+int sscanf(const char *str, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsscanf(str, format, args);
+    va_end(args);
+    return ret;
+}
+
+// File I/O (FILE* based)
+int fclose(FILE *fp) { return g_stock_api.fclose(fp); }
+int fflush(FILE *fp) { return g_stock_api.fflush(fp); }
+FILE *fopen(const char *path, const char *mode) { return g_stock_api.fopen(path, mode); }
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) { return g_stock_api.fw_fread(ptr, size, nmemb, stream); }
+int fseeko(FILE *stream, off_t offset, int whence) { return g_stock_api.fseeko(stream, offset, whence); }
+long ftell(FILE *stream) { return g_stock_api.ftell(stream); }
+off_t ftello(FILE *stream) { return g_stock_api.ftello(stream); }
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) { return g_stock_api.fwrite(ptr, size, nmemb, stream); }
+char *fgets(char *s, int size, FILE *stream) { return g_stock_api.fgets(s, size, stream); }
+
+// Time
+time_t time(time_t *t) { return g_stock_api.time(t); }
+struct tm *localtime(const time_t *timep) { return g_stock_api.localtime(timep); }
+
+// Miscellaneous
+int rand(void) { return g_stock_api.rand(); }
+int isnan(double x) { return g_stock_api.isnan(x); }
+int isinf(double x) { return g_stock_api.isinf(x); }
+
+// String Manipulation
+int strcat(char *dest, const char *src) { return g_stock_api.strcat(dest, src); }
+int strncmp(const char *s1, const char *s2, size_t n) { return g_stock_api.strncmp(s1, s2, n); }
+char *strncpy(char *dest, const char *src, size_t n) { return g_stock_api.strncpy(dest, src, n); }
+char *strchr(const char *s, int c) { return g_stock_api.strchr(s, c); }
+char *strrchr(const char *s, int c) { return g_stock_api.strrchr(s, c); }
+char *strstr(const char *haystack, const char *needle) { return g_stock_api.strstr(haystack, needle); }
+int strcasecmp(const char *s1, const char *s2) { return g_stock_api.strcasecmp(s1, s2); }
+int strncasecmp(const char *s1, const char *s2, size_t n) { return g_stock_api.strncasecmp(s1, s2, n); }
+void *memchr(const void *s, int c, size_t n) { return g_stock_api.memchr(s, c, n); }
+void *memcpy(void *dest, const void *src, size_t n) { return g_stock_api.memcpy(dest, src, n); }
+void *memset(void *s, int c, size_t n) { return g_stock_api.memset(s, c, n); }
+int memcmp(const void *s1, const void *s2, size_t n) { return g_stock_api.memcmp(s1, s2, n); }
+void *memmove(void *dest, const void *src, size_t n) { return g_stock_api.memmove(dest, src, n); }
+char *strcpy(char *dest, const char *src) { return g_stock_api.strcpy(dest, src); }
+int strcmp(const char *s1, const char *s2) { return g_stock_api.strcmp(s1, s2); }
+size_t strlen(const char *s) { return g_stock_api.strlen(s); }
+char *strdup(const char *s) { return g_stock_api.strdup(s); }
+
+// Character Classification/Conversion
+int tolower(int c) { return g_stock_api.tolower(c); }
+int toupper(int c) { return g_stock_api.toupper(c); }
+int isalnum(int c) { return g_stock_api.isalnum(c); }
+int isalpha(int c) { return g_stock_api.isalpha(c); }
+int isascii(int c) { return g_stock_api.isascii(c); }
+int iscntrl(int c) { return g_stock_api.iscntrl(c); }
+int isdigit(int c) { return g_stock_api.isdigit(c); }
+int isgraph(int c) { return g_stock_api.isgraph(c); }
+int islower(int c) { return g_stock_api.islower(c); }
+int isprint(int c) { return g_stock_api.isprint(c); }
+int ispunct(int c) { return g_stock_api.ispunct(c); }
+int isspace(int c) { return g_stock_api.isspace(c); }
+int isupper(int c) { return g_stock_api.isupper(c); }
+int isxdigit(int c) { return g_stock_api.isxdigit(c); }
+int toascii(int c) { return g_stock_api.toascii(c); }
+int _tolower(int c) { return g_stock_api._tolower(c); }
+int _toupper(int c) { return g_stock_api._toupper(c); }
+
+// Numeric Conversion
+long int strtol(const char *nptr, char **endptr, int base) { return g_stock_api.strtol(nptr, endptr, base); }
+unsigned long int strtoul(const char *nptr, char **endptr, int base) { return g_stock_api.strtoul(nptr, endptr, base); }
+double strtod(const char *nptr, char **endptr) { return g_stock_api.strtod(nptr, endptr); }
+int atoi(const char *nptr) { return g_stock_api.atoi(nptr); }
+
+// Formatted I/O
+int vsnprintf(char *str, size_t size, const char *format, va_list ap) { return g_stock_api.vsnprintf(str, size, format, ap); }
+int sprintf(char *str, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsprintf(str, format, args);
+    va_end(args);
+    return ret;
+}
+int vprintf(const char *format, va_list ap) { return g_stock_api.vprintf(format, ap); }
+int printf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vprintf(format, args);
+    va_end(args);
+    return ret;
+}
+int snprintf(char *str, size_t size, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsnprintf(str, size, format, args);
+    va_end(args);
+    return ret;
+}
+int vsprintf(char *str, const char *format, va_list ap) { return g_stock_api.vsprintf(str, format, ap); }
+int vsscanf(const char *str, const char *format, va_list ap) { return g_stock_api.vsscanf(str, format, ap); }
+int sscanf(const char *str, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = g_stock_api.vsscanf(str, format, args);
+    va_end(args);
+    return ret;
+}
+
+// File I/O (FILE* based)
+int fclose(FILE *fp) { return g_stock_api.fclose(fp); }
+int fflush(FILE *fp) { return g_stock_api.fflush(fp); }
+FILE *fopen(const char *path, const char *mode) { return g_stock_api.fopen(path, mode); }
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) { return g_stock_api.fw_fread(ptr, size, nmemb, stream); }
+int fseeko(FILE *stream, off_t offset, int whence) { return g_stock_api.fseeko(stream, offset, whence); }
+long ftell(FILE *stream) { return g_stock_api.ftell(stream); }
+off_t ftello(FILE *stream) { return g_stock_api.ftello(stream); }
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) { return g_stock_api.fwrite(ptr, size, nmemb, stream); }
+char *fgets(char *s, int size, FILE *stream) { return g_stock_api.fgets(s, size, stream); }
+
+// Time
+time_t time(time_t *t) { return g_stock_api.time(t); }
+struct tm *localtime(const time_t *timep) { return g_stock_api.localtime(timep); }
+
+// Miscellaneous
+int rand(void) { return g_stock_api.rand(); }
+int isnan(double x) { return g_stock_api.isnan(x); }
+int isinf(double x) { return g_stock_api.isinf(x); }
+
+// File I/O (fd based)
+int open(const char *path, int flags, ...)
 
 int open(const char *path, int flags, ...)
 {
@@ -266,14 +486,14 @@ void abort(void)
 {
 	unsigned ra;
 	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("abort() called from 0x%08x", ra);
+	g_stock_api.lcd_bsod("abort() called from 0x%08x", ra);
 }
 
 void exit(int status)
 {
 	unsigned ra;
 	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("exit(%d) called from 0x%08x", status, ra);
+	g_stock_api.lcd_bsod("exit(%d) called from 0x%08x", status, ra);
 }
 
 /* wrappers were not compiled in, but vfs drivers likely support these ops */
