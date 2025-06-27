@@ -10,7 +10,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include <string.h>
 #include "libretro.h"
 #include "core_api.h"
-#include "stockfw.h"
+#include "hal.h"
 #include "debug.h"
 
 static void init_once();
@@ -66,7 +66,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	if (!parse_filename(file_path, &corename, &filename)) {
 		xlog("file not MC stub: calling run_gba\n");
 		dbg_show_noblock(0x00, "\n STOCK\n\n %s\n\n ", file_path); // black
-		run_gba(file_path, load_state);
+		g_stock_api.run_gba(file_path, load_state);
 		return;
 	}
 
@@ -80,13 +80,13 @@ void load_and_run_core(const char *file_path, int load_state)
 	size_t core_size;
 
 	/* wait for the sound thread to exit, replicated in all run_... functions */
-	g_snd_task_flags = g_snd_task_flags & 0xfffe;
-	while (g_snd_task_flags != 0) {
-		dly_tsk(1);
+	*g_stock_api.g_snd_task_flags = *g_stock_api.g_snd_task_flags & 0xfffe;
+	while (*g_stock_api.g_snd_task_flags != 0) {
+		g_stock_api.dly_tsk(1);
 	}
 
 	/* FIXME! all of it!! */
-	RAMSIZE = 0x87000000;
+	*g_stock_api.RAMSIZE = 0x87000000;
 
 	snprintf(corefile, MAXPATH, "/mnt/sda1/cores/%s/core_87000000", corename);
 	snprintf(romfile, MAXPATH, "/mnt/sda1/ROMS/%s/%s", corename, filename);
@@ -94,17 +94,17 @@ void load_and_run_core(const char *file_path, int load_state)
 	xlog("corefile=%s\n", corefile);
 	xlog("romfile=%s\n", romfile);
 
-	pf = fopen(corefile, "rb");
+	pf = g_stock_api.fopen(corefile, "rb");
 	if (!pf) {
 		xlog("Error opening corefile\n");
 		return;
 	}
 
-	fseeko(pf, 0, SEEK_END);
-	core_size = ftell(pf);
-	fseeko(pf, 0, SEEK_SET);
-	fw_fread(core_load_addr, 1, core_size, pf);
-	fclose(pf);
+	g_stock_api.fseeko(pf, 0, SEEK_END);
+	core_size = g_stock_api.ftell(pf);
+	g_stock_api.fseeko(pf, 0, SEEK_SET);
+	g_stock_api.fw_fread(core_load_addr, 1, core_size, pf);
+	g_stock_api.fclose(pf);
 
 	xlog("l: core loaded\n");
 
@@ -120,30 +120,30 @@ void load_and_run_core(const char *file_path, int load_state)
 
 	/* TODO */
 
-	gfn_state_load = state_stub;
-	gfn_state_save = state_stub;
+	*g_stock_api.gfn_state_load = state_stub;
+	*g_stock_api.gfn_state_save = state_stub;
 
-	core_api->retro_set_video_refresh(retro_video_refresh_cb);
-	core_api->retro_set_audio_sample_batch(retro_audio_sample_batch_cb);
-	core_api->retro_set_input_poll(retro_input_poll_cb);
-	core_api->retro_set_input_state(retro_input_state_cb);
-	core_api->retro_set_environment(retro_environment_cb);
+	core_api->retro_set_video_refresh(g_stock_api.retro_video_refresh_cb);
+	core_api->retro_set_audio_sample_batch(g_stock_api.retro_audio_sample_batch_cb);
+	core_api->retro_set_input_poll(g_stock_api.retro_input_poll_cb);
+	core_api->retro_set_input_state(g_stock_api.retro_input_state_cb);
+	core_api->retro_set_environment(g_stock_api.retro_environment_cb);
 
 	xlog("l: retro_init\n");
 	core_api->retro_init();
 
-	g_retro_game_info.path = romfile;
-	g_retro_game_info.data = gp_buf_64m;
-	g_retro_game_info.size = g_run_file_size;
+	g_stock_api.g_retro_game_info->path = romfile;
+	g_stock_api.g_retro_game_info->data = *g_stock_api.gp_buf_64m;
+	g_stock_api.g_retro_game_info->size = *g_stock_api.g_run_file_size;
 
-	gfn_retro_get_region	= core_api->retro_get_region;
-	gfn_get_system_av_info	= core_api->retro_get_system_av_info;
-	gfn_retro_load_game		= core_api->retro_load_game;
-	gfn_retro_unload_game	= core_api->retro_unload_game;
-	gfn_retro_run			= core_api->retro_run;
+	*g_stock_api.gfn_retro_get_region	= core_api->retro_get_region;
+	*g_stock_api.gfn_get_system_av_info	= core_api->retro_get_system_av_info;
+	*g_stock_api.gfn_retro_load_game		= core_api->retro_load_game;
+	*g_stock_api.gfn_retro_unload_game	= core_api->retro_unload_game;
+	*g_stock_api.gfn_retro_run			= core_api->retro_run;
 
 	xlog("l: run_emulator(%d)\n", load_state);
-	run_emulator(load_state);
+	g_stock_api.run_emulator(load_state);
 
 	xlog("l: retro_deinit\n");
 	core_api->retro_deinit();
@@ -155,14 +155,14 @@ void hook_sys_watchdog_reboot(void)
 {
 	unsigned ra;
 	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("assert at 0x%08x", ra);
+	g_stock_api.lcd_bsod("assert at 0x%08x", ra);
 }
 
 void hook_exception_handler(unsigned code)
 {
 	unsigned ra;
 	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("exception %d at 0x%08x", code, ra);
+	g_stock_api.lcd_bsod("exception %d at 0x%08x", code, ra);
 }
 
 static void clear_bss()
@@ -194,6 +194,7 @@ static void init_once()
 
 	first_call = false;
 
+	hal_init();
 	clear_bss();
 	lcd_init();
 
@@ -201,9 +202,9 @@ static void init_once()
 	xlog_clear();
 #endif
 
-	corefile = malloc(MAXPATH);
-	romfile = malloc(MAXPATH);
-	tmpbuffer = malloc(MAXPATH);
+	corefile = g_stock_api.malloc(MAXPATH);
+	romfile = g_stock_api.malloc(MAXPATH);
+	tmpbuffer = g_stock_api.malloc(MAXPATH);
 
 	// Before calling "irq_handler", make sure the $gp register points to the original address that
 	// was initially set by the stock startup code and that all stock code expect it to be.

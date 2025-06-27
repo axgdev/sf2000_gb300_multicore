@@ -50,14 +50,23 @@ LD_DIR := linker_scripts
 SCRIPTS_DIR := scripts
 
 # Update object and output file locations
-CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
-LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+CORE_OBJS := $(addprefix $(BUILD_DIR)/,hal.o core_api.o lib.o debug.o video_sf2000.o)
+LOADER_OBJS := $(addprefix $(BUILD_DIR)/,hal.o init.o main.o debug.o)
 
 # Default target
 ifneq ($(CORE),)
 all: $(BUILD_DIR)/core_87000000 $(BUILD_DIR)/bisrv.asd install
 else
 all: $(BUILD_DIR)/bisrv.asd install
+endif
+
+# Default to sf2000 if not specified
+PLATFORM ?= sf2000
+
+ifeq ($(PLATFORM), sf2000)
+CFLAGS += -DPLATFORM_SF2000
+else ifeq ($(PLATFORM), gb300)
+CFLAGS += -DPLATFORM_GB300
 endif
 
 # Ensure build directory exists
@@ -74,7 +83,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.s | $(BUILD_DIR)
 
 libretro_core:
 	@$(call echo_i,"compiling $(CORE)")
-	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) platform=sf2000
+	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) platform=$(PLATFORM)
 
 $(BUILD_DIR)/libretro_core.a: libretro_core | $(BUILD_DIR)
 	cp $(CORE)/*.a $(BUILD_DIR)/libretro_core.a
@@ -88,7 +97,7 @@ $(BUILD_DIR)/libretro-common.a: libretro-common | $(BUILD_DIR)
 
 $(BUILD_DIR)/core.elf: $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld $(LD_DIR)/bisrv_08_03-core.ld -o $@ \
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld -o $@ \
 		-Wl,--start-group $(CORE_OBJS) $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a -lc -Wl,--end-group
 
 $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
@@ -96,7 +105,7 @@ $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
 
 $(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
 	@$(call echo_i,"compiling $(BUILD_DIR)/loader.elf")
-	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
+	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
 
 $(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
@@ -169,7 +178,7 @@ endif
 clean:
 	-rm -rf $(BUILD_DIR)
 ifneq ($(CORE),)
-	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) clean platform=sf2000
+	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) clean platform=$(PLATFORM)
 endif
 
 .PHONY: all clean

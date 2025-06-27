@@ -17,9 +17,7 @@ enum tvsystem {
 
 struct vp_init_info; // all of it's rather large thus better patched in-place
 
-extern void get_vp_init_low_lcd_para(struct vp_init_info *);
 // is_lcd is named switch_flag in debug printf (it's redunant btw)
-extern void switch_lcd_or_tv(BOOL is_lcd, enum tvsystem tvsys);
 
 /* enum DIS_RGB_CLOCK in libviddrv.a. Do note them renaming from
 https://git.maschath.de/ignatz/hcrtos/-/blob/main/board/hc15xx/common/dts/sf2000_min.dts#L592
@@ -30,8 +28,6 @@ enum VPO_RGB_CLOCK {
 };
 
 #define VPO_IO_GET_OUT_MODE	3
-
-extern int vpo_ioctl(HANDLE, uint32_t, uintptr_t);
 
 #define HLD_DEV_TYPE_OSD	0x1030000
 
@@ -66,11 +62,6 @@ struct osd_vscr {
 	uint8_t b_draw_mode;
 };
 
-extern int osddrv_open(HANDLE, void *);
-extern int osddrv_close(HANDLE);
-extern int osddrv_3x_create_region(HANDLE, uint8_t, struct osdrect *, struct osdpara *);
-extern int osddrv_3x_region_write(HANDLE, uint8_t, struct osd_vscr *, struct osdrect *);
-
 #define OSD_SET_SCALE_MODE	0x0B
 
 #define OSD_SCALE_DUPLICATE	0
@@ -85,15 +76,6 @@ struct osd_scale_param {
 	uint16_t h_mul;
 	uint16_t v_mul;
 };
-
-extern int osddrv_scale(HANDLE, uint32_t, uintptr_t);
-
-extern void st7789v_caset_raset(unsigned start_column, unsigned start_row);
-extern void st7789v_ramwr(void);
-
-extern void run_osd_region_write(const void *, uint16_t, uint16_t, uint16_t);
-extern void run_screen_write(const void *, int width, int height, uint pitch);
-
 
 void video_options(config_file_t *config);
 void video_cleanup(void);

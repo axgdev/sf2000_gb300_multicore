@@ -14,6 +14,6 @@
 // into bisrv.asd at file offset 0x2260 which at runtime resides
 // at 0x80002260 memory address
 
-static const unsigned char *lcd_font = (unsigned char *)0x80002260;
+static const unsigned char *lcd_font = g_stock_api.lcd_font;
 
 #endif

@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "debug.h"
-#include "stockfw.h"
+#include "hal.h"
 #include "dirent.h"
 
 // NOTE: cache flushing for a specific memory range is currently not stable!
@@ -64,8 +64,8 @@ void *sbrk(ptrdiff_t incr)
 	static void *s_heap_ptr = NULL;
 	if (!s_heap_ptr)
 	{
-		s_heap_ptr = gp_buf_64m;	// use stock's 64MB scratch buffer
-		s_heap_end = gp_buf_64m + 0x4000000;
+		s_heap_ptr = *g_stock_api.gp_buf_64m;
+		s_heap_end = *g_stock_api.gp_buf_64m + 0x4000000;
 	}
 
 	void *curr_ptr = s_heap_ptr;
@@ -95,9 +95,9 @@ int open(const char *path, int flags, ...)
 
 // __xlog("open: path=%s flags=%d fs_flags=%d\n", path, flags, fs_flags);
 
-int ret = fs_open(path, fs_flags, fs_perms);
+int ret = g_stock_api.fs_open(path, fs_flags, fs_perms);
 	if (ret < 0)
-		errno = g_errno;
+		errno = *g_stock_api.g_errno;
 	else
 		ret += 5;
 
@@ -113,9 +113,9 @@ if (fd == 0 || fd == 1 || fd == 2)
 	fd -= 5;
 
 // __xlog("read: fd=%d buf=%p count=%u\n", fd, buf, count);
-	ssize_t ret = fs_read(fd, buf, count);
+	ssize_t ret = g_stock_api.fs_read(fd, buf, count);
 	if (ret < 0)
-		errno = g_errno;
+		errno = *g_stock_api.g_errno;
 // __xlog("read: ret=%d\n", ret);
 	return ret;
 }
@@ -133,9 +133,9 @@ ssize_t write(int fd, const void *buf, size_t count)
 	fd -= 5;
 
 // __xlog("write: fd=%d buf=%p count=%u\n", fd, buf, count);
-	ssize_t ret = fs_write(fd, buf, count);
+	ssize_t ret = g_stock_api.fs_write(fd, buf, count);
 	if (ret < 0)
-		errno = g_errno;
+		errno = *g_stock_api.g_errno;
 // __xlog("write: ret=%d\n", ret);
 	return ret;
 }
@@ -149,9 +149,9 @@ off_t lseek(int fd, off_t offset, int whence)
 
 	fd -= 5;
 
-	int64_t ret = fs_lseek(fd, offset, whence);
+	int64_t ret = g_stock_api.fs_lseek(fd, offset, whence);
 	if (ret < 0)
-		errno = g_errno;
+		errno = *g_stock_api.g_errno;
 // __xlog("lseek: ret=%d\n", (int)ret);
 
 	return ret;
@@ -166,9 +166,9 @@ int close(int fd)
 
 	fd -= 5;
 
-	int ret = fs_close(fd);
+	int ret = g_stock_api.fs_close(fd);
 	if (ret < 0)
-		errno = g_errno;
+		errno = *g_stock_api.g_errno;
 // __xlog("close: ret=%d\n", ret);
 	return ret;
 }
@@ -205,14 +205,14 @@ static int stat_common(int ret, fs_stat_t *buffer, struct stat *sbuf)
 int	stat(const char *path, struct stat *sbuf)
 {
 	fs_stat_t buffer = {0};
-	int ret = fs_stat(path, &buffer);
+	int ret = g_stock_api.fs_stat(path, &buffer);
 	return stat_common(ret, &buffer, sbuf);
 }
 
 int	fstat(int fd, struct stat *sbuf)
 {
 	fs_stat_t buffer = {0};
-	int ret = fs_fstat(fd, &buffer);
+	int ret = g_stock_api.fs_fstat(fd, &buffer);
 	return stat_common(ret, &buffer, sbuf);
 }
 
@@ -224,7 +224,7 @@ int access(const char *path, int mode)
 
 int mkdir(const char *path, mode_t mode)
 {
-	return fs_mkdir(path, mode);
+	return g_stock_api.fs_mkdir(path, mode);
 }
 
 char *getcwd(char *buf, size_t size)
@@ -291,7 +291,7 @@ clock_t clock(void)
 {
 	// clock function should return cpu clock ticks, so since os_get_tick_count() returns milliseconds,
 	// we devide by 1000 to get the seconds and multiply by CLOCKS_PER_SEC to get the clock ticks.
-    return (clock_t)(os_get_tick_count() * CLOCKS_PER_SEC / 1000);
+    return (clock_t)(g_stock_api.os_get_tick_count() * CLOCKS_PER_SEC / 1000);
 }
 
 int gettimeofday(struct timeval *tv, void *tz)
@@ -299,7 +299,7 @@ int gettimeofday(struct timeval *tv, void *tz)
 	if (tv == NULL)
 		return -1;
 
-	uint32_t msec = os_get_tick_count();
+	uint32_t msec = g_stock_api.os_get_tick_count();
 
 	tv->tv_sec = msec / 1000;
 	tv->tv_usec = (msec % 1000) * 1000;
@@ -309,7 +309,7 @@ int gettimeofday(struct timeval *tv, void *tz)
 
 DIR *opendir(const char *path)
 {
-	int fd = fs_opendir(path);
+	int fd = g_stock_api.fs_opendir(path);
 	if (fd < 0)
 		return NULL;
 
@@ -322,7 +322,7 @@ int closedir(DIR *dir)
 	if (fd < 0)
 		return -1;
 
-	return fs_closedir(fd);
+	return g_stock_api.fs_closedir(fd);
 }
 
 struct dirent *readdir(DIR *dir)
@@ -345,7 +345,7 @@ struct dirent *readdir(DIR *dir)
 		};
 	} buffer = {0};
 
-	if (fs_readdir(fd, &buffer) < 0)
+	if (g_stock_api.fs_readdir(fd, &buffer) < 0)
 		return NULL;
 
 	// TODO: not thread safe

@@ -12,10 +12,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "stockfw.h"
 #include "lcd_font.h"
 
-extern unsigned long PINMUXL;
-extern unsigned long PINMUXT;
-extern unsigned long GPIOLCTRL;
-extern unsigned long GPIOTCTRL;
+#include "hal.h"
 
 #define COLS 	(320/FONT_WIDTH_STRIDE)
 #define ROWS	(240/FONT_HEIGHT)
@@ -70,36 +67,36 @@ static void lcd_printf(const char *fmt, ...)
 
 void lcd_pinmux_gpio(void)
 {
-	*((volatile unsigned *)&PINMUXL + 0) &= 0xffff; // L02-03 (D0-1)
-	*((volatile unsigned *)&PINMUXL + 1) = 0; // L04-07 (D2-4, WR)
-	*((volatile unsigned *)&PINMUXL + 2) &= 0xff00ffff; // L10 (CS)
+	*((volatile unsigned *)g_stock_api.PINMUXL + 0) &= 0xffff; // L02-03 (D0-1)
+	*((volatile unsigned *)g_stock_api.PINMUXL + 1) = 0; // L04-07 (D2-4, WR)
+	*((volatile unsigned *)g_stock_api.PINMUXL + 2) &= 0xff00ffff; // L10 (CS)
 
-	*((volatile unsigned *)&PINMUXT + 0) &= 0xff; // T01-03 (RS, D11-12)
-	*((volatile unsigned *)&PINMUXT + 1) &= 0xff000000; // T04-06 (D13-15)
-	*((volatile unsigned *)&PINMUXT + 2) &= 0xff; // T09-11 (D5-D7)
-	*((volatile unsigned *)&PINMUXT + 3) &= 0xff000000; // T12-14 (D8-10)
+	*((volatile unsigned *)g_stock_api.PINMUXT + 0) &= 0xff; // T01-03 (RS, D11-12)
+	*((volatile unsigned *)g_stock_api.PINMUXT + 1) &= 0xff000000; // T04-06 (D13-15)
+	*((volatile unsigned *)g_stock_api.PINMUXT + 2) &= 0xff; // T09-11 (D5-D7)
+	*((volatile unsigned *)g_stock_api.PINMUXT + 3) &= 0xff000000; // T12-14 (D8-10)
 }
 
 static void lcd_send(unsigned short data)
 {
-	*((volatile unsigned *)&GPIOLCTRL + 4) = // clear L10 (CS), L07 (WR); L02-06 <- D0-4
-		*((volatile unsigned *)&GPIOLCTRL + 4) & 0xfffffb03 | data << 2 & 0x7c;
-	*((volatile unsigned *)&GPIOTCTRL + 4) = // T09-14 <- D5-10, D11-15 -> T02-06, tDST
-		*((volatile unsigned *)&GPIOTCTRL + 4) & 0xffff8183 | data << 4 & 0x7e00 | data >> 9 & 0x7c;
-	*((volatile unsigned *)&GPIOLCTRL + 4) |= 1 << 7; // set L07 (WR), tCSH
-	*((volatile unsigned *)&GPIOLCTRL + 4) |= 1 << 10; // set L10 (CS)
+	*((volatile unsigned *)g_stock_api.GPIOLCTRL + 4) = // clear L10 (CS), L07 (WR); L02-06 <- D0-4
+		*((volatile unsigned *)g_stock_api.GPIOLCTRL + 4) & 0xfffffb03 | data << 2 & 0x7c;
+	*((volatile unsigned *)g_stock_api.GPIOTCTRL + 4) = // T09-14 <- D5-10, D11-15 -> T02-06, tDST
+		*((volatile unsigned *)g_stock_api.GPIOTCTRL + 4) & 0xffff8183 | data << 4 & 0x7e00 | data >> 9 & 0x7c;
+	*((volatile unsigned *)g_stock_api.GPIOLCTRL + 4) |= 1 << 7; // set L07 (WR), tCSH
+	*((volatile unsigned *)g_stock_api.GPIOLCTRL + 4) |= 1 << 10; // set L10 (CS)
 }
 
 void lcd_send_cmd(unsigned char cmd)
 {
-	*((volatile unsigned *)&GPIOTCTRL + 4) &= ~(1 << 1); // clear T01 (RS)
-	lcd_send(cmd);
+	*((volatile unsigned *)g_stock_api.GPIOTCTRL + 4) &= ~(1 << 1); // clear T01 (RS)
+	lcd_send(cmd)
 }
 
 void lcd_send_data(unsigned short data)
 {
-	*((volatile unsigned *)&GPIOTCTRL + 4) |= 1 << 1; // set T01 (RS)
-	lcd_send(data);
+	*((volatile unsigned *)g_stock_api.GPIOTCTRL + 4) |= 1 << 1; // set T01 (RS)
+	lcd_send(data)
 }
 
 static void lcd_flush(unsigned short background_color)
@@ -140,7 +137,7 @@ static void lcd_flush(unsigned short background_color)
 
 void dbg_show_noblock(unsigned short background_color, const char *fmt, ...)
 {
-	os_disable_interrupt();
+	g_stock_api.os_disable_interrupt();
 	lcd_init();
 	va_list ap;
 	va_start(ap, fmt);
@@ -153,12 +150,12 @@ void dbg_show_noblock(unsigned short background_color, const char *fmt, ...)
 		lcd_flush(background_color);
 	}
 
-	os_enable_interrupt();
+	g_stock_api.os_enable_interrupt();
 }
 
 void lcd_bsod(const char *fmt, ...)
 {
-	os_disable_interrupt();
+	g_stock_api.os_disable_interrupt();
 	lcd_init();
 	lcd_printf("\n "); // guard against some screen misalignment
 
@@ -177,7 +174,7 @@ void lcd_bsod(const char *fmt, ...)
 
 static bool is_file_exists(const char *path)
 {
-	return fs_access(path, 0) == 0;
+	return g_stock_api.fs_access(path, 0) == 0;
 }
 
 static bool is_xlog_enabled()
@@ -202,12 +199,12 @@ void xlog_clear()
 		return;
 
 	// we don't have a fs delete function, so instead just truncate the log file
-	FILE *hlog = fopen(LOG_FILENAME, "w");
+	FILE *hlog = g_stock_api.fopen(LOG_FILENAME, "w");
 	if (!hlog)
 		return;
 
-	fclose(hlog);
-	fs_sync(LOG_FILENAME);
+	g_stock_api.fclose(hlog);
+	g_stock_api.fs_sync(LOG_FILENAME);
 }
 
 void xlog(const char *fmt, ...)
@@ -223,7 +220,7 @@ void xlog(const char *fmt, ...)
 	// but in that case the cores should not have their own xlog, but rather the loader
 	// would pass its xlog to the cores, so that there would be only one open hlog handle.
 
-	FILE* hlog = fopen(LOG_FILENAME, "a");
+	FILE* hlog = g_stock_api.fopen(LOG_FILENAME, "a");
 	if (!hlog)
 		return;
 
@@ -234,8 +231,8 @@ void xlog(const char *fmt, ...)
 	vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
 
-	fwrite(buffer, strlen(buffer), 1, hlog);
-	fclose(hlog);
+	g_stock_api.fwrite(buffer, strlen(buffer), 1, hlog);
+	g_stock_api.fclose(hlog);
 
-	fs_sync(LOG_FILENAME);
+	g_stock_api.fs_sync(LOG_FILENAME);
 }

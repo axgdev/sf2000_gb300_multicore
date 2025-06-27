@@ -18,7 +18,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "file/config_file.h"
 
 #include "debug.h" // GPIO LCD routines must remain there for BSOD compactness
-#include "stockfw.h"
+#include "hal.h"
 #include "video_sf2000.h"
 
 // better with ge_gma_get_region_info in init TODO
@@ -96,11 +96,11 @@ static void config_load(config_file_t *conf)
 		if (strchr(e->value, ':') != NULL) {
 			unsigned num = 1, denom = 1;
 
-			sscanf(e->value, "%u : %u", &num, &denom);
+			g_stock_api.sscanf(e->value, "%u : %u", &num, &denom);
 			g_ratio = 1.0 * num / denom;
 		}
-		else g_ratio = strtod(e->value, NULL);
-	}
+				else g_ratio = g_stock_api.strtod(e->value, NULL);
+}
 
 	config_get_bool(conf, "sf2000_scaling_filtered", &g_filtered);
 	config_get_double(conf, "sf2000_ntsc_underscan", &g_ntsc_underscan);
@@ -210,15 +210,15 @@ static void recreate_region(enum tvsystem tvsys, uint16_t width, uint16_t height
 	);
 #endif
 
-	osddrv_close(m_osd_dev);
-	osddrv_open(m_osd_dev, &para);
-	dly_tsk(20); // wait at least one full frame
+	g_stock_api.osddrv_close(m_osd_dev);
+	g_stock_api.osddrv_open(m_osd_dev, &para);
+	g_stock_api.dly_tsk(20); // wait at least one full frame
 
-	osddrv_3x_create_region(m_osd_dev, 0, &r, &para);
-	osddrv_scale(m_osd_dev, OSD_SET_SCALE_MODE,
+	g_stock_api.osddrv_3x_create_region(m_osd_dev, 0, &r, &para);
+	g_stock_api.osddrv_scale(m_osd_dev, OSD_SET_SCALE_MODE,
 		g_filtered ? OSD_SCALE_FILTER : OSD_SCALE_DUPLICATE
 	);
-	osddrv_scale(m_osd_dev, OSD_SCALE_WITH_PARAM, (uintptr_t)&scale_param);
+	g_stock_api.osddrv_scale(m_osd_dev, OSD_SCALE_WITH_PARAM, (uintptr_t)&scale_param);
 }
 
 static void region_write(const void *buf,
@@ -228,7 +228,7 @@ static void region_write(const void *buf,
 	struct osdrect r = { 0, 0, width, height };
 
 	vscr.b_color_mode = OSD_HD_RGB565;
-	osddrv_3x_region_write(m_osd_dev, 0, &vscr, &r);
+	g_stock_api.osddrv_3x_region_write(m_osd_dev, 0, &vscr, &r);
 }
 
 static HANDLE m_vpo_dev;
@@ -237,7 +237,7 @@ static enum tvsystem get_cur_tvsys(void)
 {
 	enum tvsystem tvsys;
 
-	vpo_ioctl(m_vpo_dev, VPO_IO_GET_OUT_MODE, (uintptr_t)&tvsys);
+	g_stock_api.vpo_ioctl(m_vpo_dev, VPO_IO_GET_OUT_MODE, (uintptr_t)&tvsys);
 	return tvsys;
 }
 
@@ -279,9 +279,9 @@ static void patch__get_vp_init_low_lcd_para(uint16_t rgb_clock,
 	uint16_t h_total_len, uint16_t v_total_len,
 	uint16_t h_active_len, uint16_t v_active_len)
 {
-	uint16_t *pfn = (void *)&get_vp_init_low_lcd_para;
+	uint16_t *pfn = (void *)&g_stock_api.get_vp_init_low_lcd_para;
 
-	os_disable_interrupt(); // avoid mode switch inbetween
+	g_stock_api.os_disable_interrupt(); // avoid mode switch inbetween
 
 	pfn[0x50 / sizeof pfn[0]] = rgb_clock;
 	pfn[0x58 / sizeof pfn[0]] = v_total_len;
@@ -289,18 +289,18 @@ static void patch__get_vp_init_low_lcd_para(uint16_t rgb_clock,
 	pfn[0x68 / sizeof pfn[0]] = v_active_len;
 	pfn[0x70 / sizeof pfn[0]] = h_active_len; // used for lcd_width, too
 
-	__builtin___clear_cache(pfn, &switch_lcd_or_tv);
+	__builtin___clear_cache(pfn, &g_stock_api.switch_lcd_or_tv);
 
-	os_enable_interrupt();
+	g_stock_api.os_enable_interrupt();
 }
 
 #define MIPS_LI_A1 (9 << 26 | 5 << 16 | 0 << 21) // addiu a1, $0
 
 static void patch__st7789v_caset_raset(uint16_t cols, uint16_t rows)
 {
-	uint32_t *pfn = (void *)&st7789v_caset_raset;
+	uint32_t *pfn = (void *)&g_stock_api.st7789v_caset_raset;
 
-	os_disable_interrupt(); // patch rationale: called in a VSync GPIO ISR!
+	g_stock_api.os_disable_interrupt(); // patch rationale: called in a VSync GPIO ISR!
 
 	pfn[0x44 / sizeof pfn[0]] = MIPS_LI_A1 | cols >> 8 & 255;
 	pfn[0x50 / sizeof pfn[0]] = MIPS_LI_A1 | cols & 255;
@@ -309,44 +309,43 @@ static void patch__st7789v_caset_raset(uint16_t cols, uint16_t rows)
 	pfn[0x80 / sizeof pfn[0]] = MIPS_LI_A1 | rows >> 8 & 255;
 	pfn[0x8c / sizeof pfn[0]] = MIPS_LI_A1 | rows & 255;
 
-	__builtin___clear_cache(pfn, &st7789v_ramwr);
+	__builtin___clear_cache(pfn, &g_stock_api.st7789v_ramwr);
 
-	os_enable_interrupt();
+	g_stock_api.os_enable_interrupt();
 }
 
 #define MIPS_J (2 << 26)
 
 static void patch__run_screen_write(void *pregion_write)
 {
-	uint32_t *pfn = (void *)&run_screen_write;
-	extern void run_sound_advance(void *, unsigned); // happens to be next fn
+	uint32_t *pfn = (void *)&g_stock_api.run_screen_write;
 
-	os_disable_interrupt(); // avoid screen writes inbetween
+	g_stock_api.os_disable_interrupt(); // avoid screen writes inbetween
 
 	pfn[0xc0 / sizeof pfn[0]] = MIPS_J |
 		(uint32_t)pregion_write >> 2 & ((1 << 26) - 1);
 
-	__builtin___clear_cache(pfn, &run_sound_advance);
+	__builtin___clear_cache(pfn, &g_stock_api.run_sound_advance);
 
-	os_enable_interrupt();
+	g_stock_api.os_enable_interrupt();
 }
 
 static void lcd_memory_data_access_ctl(uint8_t data)
 {
-	os_disable_interrupt(); // avoid the VSync GPIO ISR messing pinmux
+	g_stock_api.os_disable_interrupt(); // avoid the VSync GPIO ISR messing pinmux
 
 	lcd_pinmux_gpio();
 
 	lcd_send_cmd(0x36); // MADCTL
 	lcd_send_data(data);
 
-	os_enable_interrupt();
+	g_stock_api.os_enable_interrupt();
 }
 
 inline static void apply_rgb_timings(void)
 {
 	if (get_cur_tvsys() == RGB_LCD)
-		switch_lcd_or_tv(1, RGB_LCD);
+		g_stock_api.switch_lcd_or_tv(1, RGB_LCD);
 }
 
 inline static void swap_region_width_height(void)
@@ -362,15 +361,15 @@ void video_options(config_file_t *conf)
 	config_load(conf);
 
 	if (scaling_mode == CORE_PROVIDED) {
-		retro_get_system_av_info(&info);
+		g_stock_api.retro_get_system_av_info(&info);
 		if (info.geometry.aspect_ratio <= 0.1f)
 			g_ratio = 1.0 * info.geometry.base_width / info.geometry.base_height;
 		else
 			g_ratio = info.geometry.aspect_ratio;
 	}
 
-	m_osd_dev = dev_get_by_id(HLD_DEV_TYPE_OSD, 0);
-	m_vpo_dev = dev_get_by_id(HLD_DEV_TYPE_DIS, 0);
+	m_osd_dev = g_stock_api.dev_get_by_id(HLD_DEV_TYPE_OSD, 0);
+	m_vpo_dev = g_stock_api.dev_get_by_id(HLD_DEV_TYPE_DIS, 0);
 
 	if (tearing_fix == DISABLED) {
 		patch__get_vp_init_low_lcd_para(VPO_RGB_CLOCK_6_6M,
@@ -395,7 +394,7 @@ void video_options(config_file_t *conf)
 
 		swap_region_width_height(); // also clears garbled "Loading..."
 
-		rot_buf = malloc(MAX_WIDTH * MAX_HEIGHT * sizeof rot_buf[0]);
+		rot_buf = g_stock_api.malloc(MAX_WIDTH * MAX_HEIGHT * sizeof rot_buf[0]);
 	}
 
 	if (tearing_fix == ROTATE || scaling_mode != STOCK) {
@@ -406,7 +405,7 @@ void video_options(config_file_t *conf)
 void video_cleanup(void)
 {
 	if (tearing_fix == ROTATE || scaling_mode != STOCK) {
-		patch__run_screen_write(&run_osd_region_write);
+		patch__run_screen_write(&g_stock_api.run_osd_region_write);
 	}
 
 	if (tearing_fix != ROTATE) return; // that's all folks! fast patch stays
@@ -423,5 +422,5 @@ void video_cleanup(void)
 
 	swap_region_width_height(); // second time thus cancels out
 
-	free(rot_buf);
+	g_stock_api.free(rot_buf);
 }
