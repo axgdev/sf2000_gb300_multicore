@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <reent.h>
 
 #include "libretro.h"
@@ -11,7 +12,15 @@
 #include "core_api.h"
 #include "debug.h"
 #include "stockfw.h"
+#include "hal_api.h"
 #include "video_sf2000.h"
+
+// --- Extern function declarations ---
+// These functions are defined in other files but used here.
+extern void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char* library_name);
+extern void build_core_config_filepath(char *filepath, size_t size);
+extern void video_options(config_file_t *conf);
+extern void video_cleanup(void);
 
 #define MAXPATH 	255
 #define SYSTEM_DIRECTORY	"/mnt/sda1/bios"
@@ -57,9 +66,12 @@ static bool g_per_state_srm = true;
 
 static void dummy_retro_run(void);
 
-static int *fw_fps_counter_enable = 0x80c0b5e0;
-static int *fw_fps_counter = 0x80c0b5dc;
-static char *fw_fps_counter_format = 0x8099bdf0;	// "%2d/%2d"
+// Note: These addresses are for SF2000 and are different on GB300.
+// The HAL does not abstract these yet, so this feature will only work on SF2000.
+// A proper fix would be to add them to the HAL.
+static int *fw_fps_counter_enable = (int*)0x80c0b5e0;
+static int *fw_fps_counter = (int*)0x80c0b5dc;
+static char *fw_fps_counter_format = (char*)0x8099bdf0;	// "%2d/%2d"
 static void fps_counter_enable(bool enable);
 
 
@@ -118,7 +130,7 @@ void save_srm(const char slot){
 		return;
 	fwrite(retro_get_memory_data(RETRO_MEMORY_SAVE_RAM), save_size, 1, ram_file);
 	fclose(ram_file);
-	fs_sync(ram_filepath);
+	hal_api.fs_sync(ram_filepath);
 }
 
 void load_srm(const char slot){
@@ -146,7 +158,9 @@ void load_srm(const char slot){
 
 void wrap_retro_unload_game(void){
 	save_srm(0);
-	retro_unload_game();
+	// The core's retro_unload_game is called by the frontend (run_emulator)
+	// when the game session ends. We just need to save SRM here.
+	// Calling it directly can cause a double-free or other issues.
 }
 
 static void clear_bss()
@@ -208,6 +222,11 @@ struct retro_core_t *__core_entry__(void)
 	__sinit(_REENT);
 	__libc_init_array();
 
+	// The loader has already called hal_init(), so we can initialize
+	// the impure_ptr for the core's C library functions.
+	void _impure_ptr_init(); // From syscall_wrappers.c
+	_impure_ptr_init();
+
 	xlog("libc initialized\n");
 
 	return &core_exports;
@@ -225,16 +244,16 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	s_game_filepath = info->path;
 
 	char config_game_filepath[MAXPATH];
-	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath, sysinfo.library_name);
+	build_game_config_filepath(config_game_filepath, sizeof(config_game_filepath), s_game_filepath, (const char*)sysinfo.library_name);
 
 	// load per game options
-	config_add_file(config_game_filepath);
+	config_append_file(s_core_config, config_game_filepath);
 
 	// setup load/save state handlers
-	gfn_state_load = state_load;
-	gfn_state_save = state_save;
+	*hal_api.gfn_state_load = state_load;
+	*hal_api.gfn_state_save = state_save;
 
-	gfn_frameskip = NULL;
+	*hal_api.gfn_frameskip = NULL;
 
 	// install custom input handler to filter out all requests for non-joypad devices
 	retro_set_input_state(wrap_input_state_cb);
@@ -283,7 +302,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	if (!ret)
 	{
 		xlog("retro_load_game failed\n");
-		gfn_retro_run = dummy_retro_run;
+		*hal_api.gfn_retro_run = dummy_retro_run;
 	}
 	else
 	{
@@ -391,16 +410,16 @@ bool wrap_environ_cb(unsigned cmd, void *data)
 			if (buff_status_cb)
 			{
 				audio_buff_status_cb = buff_status_cb->callback;
-				gfn_frameskip = frameskip_cb;
+				*hal_api.gfn_frameskip = frameskip_cb;
 			}
 			else
-				gfn_frameskip = NULL;
+				*hal_api.gfn_frameskip = NULL;
 
 			xlog("support for auto frameskipping %s\n", buff_status_cb ? "enabled" : "disabled" );
 			return true;
 		}
 	}
-	return retro_environment_cb(cmd, data);
+	return hal_api.retro_environment_cb(cmd, data);
 }
 
 void log_cb(enum retro_log_level level, const char *fmt, ...)
@@ -496,7 +515,7 @@ int state_save(const char *frontend_state_filepath)
 
 	free(data);
 
-	fs_sync(state_filepath);
+	hal_api.fs_sync(state_filepath);
 
 	if(g_per_state_srm){
 		save_srm(slot);
@@ -504,13 +523,13 @@ int state_save(const char *frontend_state_filepath)
 	return 1;
 }
 
-void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, char library_name)
+void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char* library_name)
 {
-	char basename[MAXPATH];
-	fill_pathname_base(basename, game_filepath, sizeof(basename));
-	path_remove_extension(basename);
+    char basename[MAXPATH];
+    fill_pathname_base(basename, game_filepath, sizeof(basename));
+    path_remove_extension(basename);
 
-	snprintf(filepath, size, CONFIG_DIRECTORY "/%s/%s.opt",library_name, basename);
+    snprintf(filepath, size, CONFIG_DIRECTORY "/%s/%s.opt", library_name, basename);
 }
 
 void build_core_config_filepath(char *filepath, size_t size)
@@ -521,24 +540,18 @@ void build_core_config_filepath(char *filepath, size_t size)
 	snprintf(filepath, size, CONFIG_DIRECTORY "/%s.opt", sysinfo.library_name);
 }
 
-void config_add_file(const char *filepath)
-{
-	bool ret = config_append_file(s_core_config, filepath);
-	xlog("config_load: %s %s\n", filepath, ret ? "loaded" : "not found");
-}
-
-void config_load()
+void core_config_init(void)
 {
 	s_core_config = config_file_new_alloc();
 
 	// load global multicore options
-	config_add_file(CONFIG_DIRECTORY "/multicore.opt");
+	config_append_file(s_core_config, CONFIG_DIRECTORY "/multicore.opt");
 
 	char config_filepath[MAXPATH];
 	build_core_config_filepath(config_filepath, sizeof(config_filepath));
 
 	// load per core options
-	config_add_file(config_filepath);
+	config_append_file(s_core_config, config_filepath);
 }
 
 void config_free()
@@ -589,7 +602,7 @@ size_t mono_mix_audio_batch_cb(const int16_t *data, size_t frames)
 	}
 
 	// NOTE: stock frontend audio_batch_cb always return 0!
-	retro_audio_sample_batch_cb(data, frames);
+	hal_api.retro_audio_sample_batch_cb(data, frames);
 	// return `frames` as if all data was consumed
 	return frames;
 }
@@ -598,7 +611,7 @@ void mono_mix_audio_sample_cb(int16_t left, int16_t right)
 {
 	int16_t mixed = (left >> 1) + (right >> 1);
 	int16_t data[2] = {mixed, right};
-	retro_audio_sample_batch_cb(data, 1);
+	hal_api.retro_audio_sample_batch_cb(data, 1);
 }
 
 void convert_xrgb8888_to_rgb565(void* buffer, unsigned width, unsigned height, size_t stride)
@@ -625,19 +638,19 @@ void xrgb8888_video_refresh_cb(const void *data, unsigned width, unsigned height
 {
 	convert_xrgb8888_to_rgb565((void*)data, width, height, pitch);
 
-	retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
+	hal_api.retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
 }
 
 static void enable_xrgb8888_support()
 {
-	xlog("support for XRGB8888 enabled\n");
+    xlog("support for XRGB8888 enabled\n");
 
-	struct retro_system_av_info av_info;
-	retro_get_system_av_info(&av_info);
+    struct retro_system_av_info av_info;
+    retro_get_system_av_info(&av_info);
 
-	s_rgb565_convert_buffer = (uint16_t*)malloc(av_info.geometry.max_width * av_info.geometry.max_height * sizeof(uint16_t));
+    s_rgb565_convert_buffer = (uint16_t*)malloc(av_info.geometry.max_width * av_info.geometry.max_height * sizeof(uint16_t));
 
-	xlog("created rgb565_convert_buffer=%p width=%u height=%u\n",
+    xlog("created rgb565_convert_buffer=%p width=%u height=%u\n",
 		s_rgb565_convert_buffer, av_info.geometry.max_width, av_info.geometry.max_height);
 
 	//retro_set_video_refresh(xrgb8888_video_refresh_cb);
@@ -646,10 +659,10 @@ static void enable_xrgb8888_support()
 
 static int16_t wrap_input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id)
 {
-	if ((port == 0 || port == 1) && (device == RETRO_DEVICE_JOYPAD))
-		return retro_input_state_cb(port, device, index, id);
-	else
-		return 0;
+    if ((port == 0 || port == 1) && (device == RETRO_DEVICE_JOYPAD))
+        return hal_api.retro_input_state_cb(port, device, index, id);
+    else
+        return 0;
 }
 
 static void frameskip_cb(BOOL flag)
@@ -659,8 +672,7 @@ static void frameskip_cb(BOOL flag)
 
 static void dummy_retro_run(void)
 {
-	dly_tsk(1);
-	//retro_environment_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL);
+    hal_api.dly_tsk(1);
 }
 
 static void fps_counter_enable(bool enable)
@@ -676,7 +688,7 @@ static void fps_counter_enable(bool enable)
 		if (g_xrgb888)
 			retro_set_video_refresh(xrgb8888_video_refresh_cb);
 		else
-			retro_set_video_refresh(retro_video_refresh_cb);
+			retro_set_video_refresh(hal_api.retro_video_refresh_cb);
 	}
 }
 
@@ -686,7 +698,7 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 	static int count_all = 0;
 	static int count_not_skipped = 0;
 
-	uint32_t curr_msec = os_get_tick_count();
+	uint32_t curr_msec = hal_api.os_get_tick_count();
 
 	++count_all;
 	if (data)
@@ -709,9 +721,9 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 	if (g_xrgb888)
 	{
 		convert_xrgb8888_to_rgb565((void*)data, width, height, pitch);
-		retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
+		hal_api.retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
 	}
-	else {
-		retro_video_refresh_cb(data, width, height, pitch);
-	}
+    else {
+        hal_api.retro_video_refresh_cb(data, width, height, pitch);
+    }
 }

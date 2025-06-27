@@ -1,0 +1,138 @@
+--- a/src/syscall_wrappers.c
++++ b/src/syscall_wrappers.c
+@@ -4,6 +4,8 @@
+ #include <fcntl.h>
+ #include <errno.h>
+ #include <reent.h>
++#include <stdarg.h>
++#include "debug.h"
+ 
+ // This file provides wrappers for standard library functions.
+ // Libretro cores will call these standard functions, and our wrappers
+@@ -12,6 +14,7 @@
+ // --- Memory ---
+ void* malloc(size_t size) { return hal_api.malloc(size); }
+ void free(void* ptr) { hal_api.free(ptr); }
+ void* realloc(void* ptr, size_t size) { return hal_api.realloc(ptr, size); }
+ void* calloc(size_t num, size_t size) { return hal_api.calloc(num, size); }
++void* sbrk(ptrdiff_t incr) { return hal_api.sbrk(incr); }
+ 
+ void* memset(void* dest, int c, size_t n) { return hal_api.memset(dest, c, n); }
+ void* memcpy(void* dest, const void* src, size_t n) { return hal_api.memcpy(dest, src, n); }
+@@ -24,53 +27,81 @@
+ char* strcpy(char* dest, const char* src) { return hal_api.strcpy(dest, src); }
+ int strncmp(const char* s1, const char* s2, size_t n) { return hal_api.strncmp(s1, s2, n); }
+ char* strncpy(char* dest, const char* src, size_t n) { return hal_api.strncpy(dest, src, n); }
++char* strcat(char* dest, const char* src) { return hal_api.strcat(dest, src); }
+ char* strchr(const char* s, int c) { return hal_api.strchr(s, c); }
+ char* strrchr(const char* s, int c) { return hal_api.strrchr(s, c); }
++char* strstr(const char* haystack, const char* needle) { return hal_api.strstr(haystack, needle); }
++int strcasecmp(const char* s1, const char* s2) { return hal_api.strcasecmp(s1, s2); }
++int strncasecmp(const char* s1, const char* s2, size_t n) { return hal_api.strncasecmp(s1, s2, n); }
++char* strdup(const char *s) { return hal_api.strdup(s); }
++
++long strtol(const char* nptr, char** endptr, int base) { return hal_api.strtol(nptr, endptr, base); }
++unsigned long strtoul(const char* nptr, char** endptr, int base) { return hal_api.strtoul(nptr, endptr, base); }
++
+ int atoi(const char *nptr) { return hal_api.atoi(nptr); }
+-char* strdup(const char *s) { return hal_api.strdup(s); }
++int tolower(int c) { return hal_api.tolower(c); }
++int toupper(int c) { return hal_api.toupper(c); }
++
+ 
+ // --- I/O ---
++// Note: open, read, write, etc. are already wrapped in lib.c
++// and will be updated to use the HAL.
++// We only need to wrap the FILE* functions here.
++
+ int printf(const char* format, ...) {
+-    va_list args;
++    char buffer[1024];
++    va_list args;
+     va_start(args, format);
+-    int ret = hal_api.vprintf(format, args);
+-    va_end(args);
++    int ret = hal_api.vsnprintf(buffer, sizeof(buffer), format, args);
++    va_end(args);
++    xlog(buffer); // Use xlog for printf, as real printf might not be available or desirable
+     return ret;
+ }
+ 
+ int sprintf(char* str, const char* format, ...) {
+     va_list args;
+     va_start(args, format);
+-    int ret = hal_api.vsprintf(str, format, args);
+-    va_end(args);
+-    return ret;
+-}
+-
+-// open/close/read/write are defined in lib.c already as wrappers, we can keep them there.
+-// FILE* fopen(const char* path, const char* mode) { return hal_api.fopen(path, mode); }
+-// int fclose(FILE* stream) { return hal_api.fclose(stream); }
+-// size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) { return hal_api.fw_fread(ptr, size, nmemb, stream); }
+-// ... etc for other FILE* functions
+-
+-// --- System ---
+-void abort(void) {
+-    unsigned ra;
+-	asm volatile ("move %0, $ra" : "=r" (ra));
+-	hal_api.printf("abort() called from 0x%08x", ra);
+-    while(1); // loop forever
+-}
+-void exit(int status) {
+-    unsigned ra;
+-	asm volatile ("move %0, $ra" : "=r" (ra));
+-	hal_api.printf("exit(%d) called from 0x%08x", status, ra);
+-    while(1); // loop forever
+-}
+-
+-// Add other necessary wrappers here...
++    int ret = hal_api.vsprintf(str, format, args);
++    va_end(args);
++    return ret;
++}
++
++int snprintf(char *str, size_t size, const char *format, ...) {
++    va_list args;
++    va_start(args, format);
++    int ret = hal_api.vsnprintf(str, size, format, args);
++    va_end(args);
++    return ret;
++}
++
++int sscanf(const char *str, const char *format, ...) {
++    va_list args;
++    va_start(args, format);
++    int ret = hal_api.vsscanf(str, format, args);
++    va_end(args);
++    return ret;
++}
++
++FILE* fopen(const char* path, const char* mode) { return hal_api.fopen(path, mode); }
++int fclose(FILE* stream) { return hal_api.fclose(stream); }
++size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) { return hal_api.fw_fread(ptr, size, nmemb, stream); }
++size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) { return hal_api.fwrite(ptr, size, nmemb, stream); }
++int fseek(FILE *stream, long offset, int whence) { return hal_api.fseeko(stream, offset, whence); }
++long ftell(FILE *stream) { return hal_api.ftell(stream); }
++char* fgets(char* s, int size, FILE* stream) { return hal_api.fgets(s, size, stream); }
++int fflush(FILE* stream) { return hal_api.fflush(stream); }
++
++// --- System ---
++int rand(void) { return hal_api.rand(); }
++time_t time(time_t *tloc) { return hal_api.time(tloc); }
++
++// --- stubs for functions not in firmware ---
++int remove(const char *pathname) {
++    errno = EROFS;
++    return -1;
++}
++
++// Global variable required by toolchain's libc implementation of some functions.
++// We point it to the firmware's _ctype_ table via the HAL.
++const unsigned char *__ctype_ptr__ = NULL;
++
++void _impure_ptr_init() {
++    _REENT_INIT_PTR(_REENT);
++    __ctype_ptr__ = *hal_api._ctype_;
++}
++

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include "debug.h"
 #include "stockfw.h"
+#include "hal_api.h"
 #include "dirent.h"
 
 // NOTE: cache flushing for a specific memory range is currently not stable!
@@ -83,8 +84,8 @@ void *sbrk(ptrdiff_t incr)
 
 int open(const char *path, int flags, ...)
 {
-	int fs_flags = 0;
-	int fs_perms = 0666;    // all access?
+    int fs_flags = 0;
+    int fs_perms = 0666;    // all access?
 	
 	if (flags & O_RDONLY) fs_flags |= FS_O_RDONLY;
 	if (flags & O_WRONLY) fs_flags |= FS_O_WRONLY;
@@ -95,11 +96,11 @@ int open(const char *path, int flags, ...)
 
 // __xlog("open: path=%s flags=%d fs_flags=%d\n", path, flags, fs_flags);
 
-int ret = fs_open(path, fs_flags, fs_perms);
-	if (ret < 0)
-		errno = g_errno;
-	else
-		ret += 5;
+    int ret = hal_api.fs_open(path, fs_flags, fs_perms);
+    if (ret < 0)
+        errno = *hal_api.g_errno;
+    else
+        ret += 5;
 
 // __xlog("open: ret=%d\n", ret);
 	return ret;
@@ -107,70 +108,42 @@ int ret = fs_open(path, fs_flags, fs_perms);
 
 ssize_t read(int fd, void *buf, size_t count)
 {
-if (fd == 0 || fd == 1 || fd == 2)
-		return 0;
+    fd -= 5;
 
-	fd -= 5;
-
-// __xlog("read: fd=%d buf=%p count=%u\n", fd, buf, count);
-	ssize_t ret = fs_read(fd, buf, count);
-	if (ret < 0)
-		errno = g_errno;
-// __xlog("read: ret=%d\n", ret);
-	return ret;
+    ssize_t ret = hal_api.fs_read(fd, buf, count);
+    if (ret < 0)
+        errno = *hal_api.g_errno;
+    return ret;
 }
 
 ssize_t write(int fd, const void *buf, size_t count)
 {
-	if (fd == 0)
-		return -1;
-	else if (fd == 1 || fd == 2)
-	{
-		xlog("%.*s", count, buf);
-		return count;
-	}
+    fd -= 5;
 
-	fd -= 5;
-
-// __xlog("write: fd=%d buf=%p count=%u\n", fd, buf, count);
-	ssize_t ret = fs_write(fd, buf, count);
-	if (ret < 0)
-		errno = g_errno;
-// __xlog("write: ret=%d\n", ret);
-	return ret;
+    ssize_t ret = hal_api.fs_write(fd, buf, count);
+    if (ret < 0)
+        errno = *hal_api.g_errno;
+    return ret;
 }
 
 off_t lseek(int fd, off_t offset, int whence)
 {
-	if (fd == 0 || fd == 1 || fd == 2)
-		return -1;
+    fd -= 5;
 
-// __xlog("lseek: fd=%d offset=%d whence=%d\n", fd, (int)offset, whence);
-
-	fd -= 5;
-
-	int64_t ret = fs_lseek(fd, offset, whence);
-	if (ret < 0)
-		errno = g_errno;
-// __xlog("lseek: ret=%d\n", (int)ret);
-
-	return ret;
+    int64_t ret = hal_api.fs_lseek(fd, offset, whence);
+    if (ret < 0)
+        errno = *hal_api.g_errno;
+    return ret;
 }
 
 int close(int fd)
 {
-	if (fd == 0 || fd == 1 || fd == 2)
-		return -1;
+    fd -= 5;
 
-// __xlog("close: fd=%d\n", fd);
-
-	fd -= 5;
-
-	int ret = fs_close(fd);
-	if (ret < 0)
-		errno = g_errno;
-// __xlog("close: ret=%d\n", ret);
-	return ret;
+    int ret = hal_api.fs_close(fd);
+    if (ret < 0)
+        errno = *hal_api.g_errno;
+    return ret;
 }
 
 typedef struct {
@@ -204,16 +177,16 @@ static int stat_common(int ret, fs_stat_t *buffer, struct stat *sbuf)
 // for now only `type` (for dir or file) and `size` fields of `struct stat` are filled
 int	stat(const char *path, struct stat *sbuf)
 {
-	fs_stat_t buffer = {0};
-	int ret = fs_stat(path, &buffer);
-	return stat_common(ret, &buffer, sbuf);
+    fs_stat_t buffer = {0};
+    int ret = hal_api.fs_stat(path, &buffer);
+    return stat_common(ret, &buffer, sbuf);
 }
 
 int	fstat(int fd, struct stat *sbuf)
 {
-	fs_stat_t buffer = {0};
-	int ret = fs_fstat(fd, &buffer);
-	return stat_common(ret, &buffer, sbuf);
+    fs_stat_t buffer = {0};
+    int ret = hal_api.fs_fstat(fd, &buffer);
+    return stat_common(ret, &buffer, sbuf);
 }
 
 int access(const char *path, int mode)
@@ -224,7 +197,7 @@ int access(const char *path, int mode)
 
 int mkdir(const char *path, mode_t mode)
 {
-	return fs_mkdir(path, mode);
+    return hal_api.fs_mkdir(path, mode);
 }
 
 char *getcwd(char *buf, size_t size)
@@ -264,16 +237,15 @@ pid_t getpid(void)
 
 void abort(void)
 {
-	unsigned ra;
-	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("abort() called from 0x%08x", ra);
+    unsigned ra;
+    asm volatile ("move %0, $ra" : "=r" (ra));
+    hal_api.printf("abort() called from 0x%08x", ra);
+    while(1);
 }
 
 void exit(int status)
 {
-	unsigned ra;
-	asm volatile ("move %0, $ra" : "=r" (ra));
-	lcd_bsod("exit(%d) called from 0x%08x", status, ra);
+    abort();
 }
 
 /* wrappers were not compiled in, but vfs drivers likely support these ops */
@@ -289,69 +261,54 @@ int isatty(int fd)
 
 clock_t clock(void)
 {
-	// clock function should return cpu clock ticks, so since os_get_tick_count() returns milliseconds,
-	// we devide by 1000 to get the seconds and multiply by CLOCKS_PER_SEC to get the clock ticks.
-    return (clock_t)(os_get_tick_count() * CLOCKS_PER_SEC / 1000);
+    return (clock_t)(hal_api.os_get_tick_count() * CLOCKS_PER_SEC / 1000);
 }
 
 int gettimeofday(struct timeval *tv, void *tz)
 {
-	if (tv == NULL)
-		return -1;
+    if (tv == NULL)
+        return -1;
 
-	uint32_t msec = os_get_tick_count();
+    uint32_t msec = hal_api.os_get_tick_count();
 
-	tv->tv_sec = msec / 1000;
-	tv->tv_usec = (msec % 1000) * 1000;
-
-	return 0;
+    tv->tv_sec = msec / 1000;
+    tv->tv_usec = (msec % 1000) * 1000;
+    return 0;
 }
 
 DIR *opendir(const char *path)
 {
-	int fd = fs_opendir(path);
-	if (fd < 0)
-		return NULL;
+    int fd = hal_api.fs_opendir(path);
+    if (fd < 0)
+        return NULL;
 
-	return (DIR*)(fd + 1);
+    DIR *dir = (DIR*)malloc(sizeof(DIR));
+    dir->fd = fd;
+    return dir;
 }
 
 int closedir(DIR *dir)
 {
-	int fd = (int)dir - 1;
-	if (fd < 0)
-		return -1;
+    int fd = dir->fd;
+    free(dir);
+    if (fd < 0)
+        return -1;
 
-	return fs_closedir(fd);
+    return hal_api.fs_closedir(fd);
 }
 
 struct dirent *readdir(DIR *dir)
 {
-	int fd = (int)dir - 1;
-	if (fd < 0)
-		return NULL;
+    static struct dirent ent;
+    int fd = dir->fd;
+    union {
+        struct dirent d;
+        char raw[sizeof(struct dirent)];
+    } buffer = {0};
 
-	struct {
-		union {
-			struct {
-				uint8_t _1[0x10];
-				uint32_t type;
-			};
-			struct {
-				uint8_t _2[0x22];
-				char    d_name[0x225];
-			};
-			uint8_t __[0x428];
-		};
-	} buffer = {0};
+    if (hal_api.fs_readdir(fd, &buffer) < 0)
+        return NULL;
 
-	if (fs_readdir(fd, &buffer) < 0)
-		return NULL;
-
-	// TODO: not thread safe
-	static struct dirent d;
-
-	d.d_type = S_ISREG(buffer.type)*DTYPE_FILE | S_ISDIR(buffer.type)*DTYPE_DIRECTORY;
-	strncpy(d.d_name, buffer.d_name, sizeof(d.d_name));
-	return &d;
+    memcpy(&ent, &buffer, sizeof(struct dirent));
+    return &ent;
 }

@@ -20,6 +20,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "debug.h" // GPIO LCD routines must remain there for BSOD compactness
 #include "stockfw.h"
 #include "video_sf2000.h"
+#include "hal_api.h"
 
 // better with ge_gma_get_region_info in init TODO
 #define MENU_WIDTH	640
@@ -170,9 +171,9 @@ static void recreate_region(enum tvsystem tvsys, uint16_t width, uint16_t height
 	};
 
 	if (tvsys == RGB_LCD && tearing_fix == ROTATE) {
-		r.u_width = height;
-		r.u_height = width;
-	}
+        r.u_width = height; // swap width/height for rotated display
+        r.u_height = width; //
+    }
 	// magic numbers? CVBS output dimensions are defined by the driver, tho
 	if (tvsys == RGB_LCD) {
 		scale_param.h_mul = 320;
@@ -182,12 +183,12 @@ static void recreate_region(enum tvsystem tvsys, uint16_t width, uint16_t height
 		scale_param.h_mul = 720;
 		scale_param.v_mul = tvsys == NTSC ? 480 : 576;
 	}
-	if (r.u_width != MENU_WIDTH || r.u_height != MENU_HEIGHT) {
-		if (scaling_mode == CORE_PROVIDED || scaling_mode == CUSTOM)
-			scale_to_ratio(tvsys, &r, &scale_param.h_mul, &scale_param.v_mul, g_ratio);
-		else if (scaling_mode == SQUARE_PIXELS)
-			scale_equally(tvsys, &r, &scale_param.h_mul, &scale_param.v_mul, g_filtered);
-	}
+	if (scaling_mode != STOCK && (r.u_width != MENU_WIDTH || r.u_height != MENU_HEIGHT)) {
+        if (scaling_mode == CORE_PROVIDED || scaling_mode == CUSTOM)
+            scale_to_ratio(tvsys, &r, &scale_param.h_mul, &scale_param.v_mul, g_ratio);
+        else if (scaling_mode == SQUARE_PIXELS)
+            scale_equally(tvsys, &r, &scale_param.h_mul, &scale_param.v_mul, g_filtered);
+    }
 	if (tvsys == RGB_LCD && tearing_fix == ROTATE) {
 		uint16_t tmp_swap = scale_param.h_mul;
 		scale_param.h_mul = scale_param.v_mul;
@@ -210,35 +211,35 @@ static void recreate_region(enum tvsystem tvsys, uint16_t width, uint16_t height
 	);
 #endif
 
-	osddrv_close(m_osd_dev);
-	osddrv_open(m_osd_dev, &para);
-	dly_tsk(20); // wait at least one full frame
+	hal_api.osddrv_close(m_osd_dev);
+	hal_api.osddrv_open(m_osd_dev, &para);
+	hal_api.dly_tsk(20); // wait at least one full frame
 
-	osddrv_3x_create_region(m_osd_dev, 0, &r, &para);
-	osddrv_scale(m_osd_dev, OSD_SET_SCALE_MODE,
+	hal_api.osddrv_3x_create_region(m_osd_dev, 0, &r, &para);
+	hal_api.osddrv_scale(m_osd_dev, OSD_SET_SCALE_MODE,
 		g_filtered ? OSD_SCALE_FILTER : OSD_SCALE_DUPLICATE
 	);
-	osddrv_scale(m_osd_dev, OSD_SCALE_WITH_PARAM, (uintptr_t)&scale_param);
+	hal_api.osddrv_scale(m_osd_dev, OSD_SCALE_WITH_PARAM, (uintptr_t)&scale_param);
 }
 
 static void region_write(const void *buf,
 	uint16_t width, uint16_t height, uint16_t pixel_pitch)
 {
-	struct osd_vscr vscr = { 0, 0, pixel_pitch, height, buf };
-	struct osdrect r = { 0, 0, width, height };
+    struct osd_vscr vscr = { 0, 0, pixel_pitch, height, buf };
+    struct osdrect r = { 0, 0, width, height };
 
-	vscr.b_color_mode = OSD_HD_RGB565;
-	osddrv_3x_region_write(m_osd_dev, 0, &vscr, &r);
+    vscr.b_color_mode = OSD_HD_RGB565;
+    hal_api.osddrv_3x_region_write(m_osd_dev, 0, &vscr, &r);
 }
 
 static HANDLE m_vpo_dev;
 
 static enum tvsystem get_cur_tvsys(void)
 {
-	enum tvsystem tvsys;
+    enum tvsystem tvsys;
 
-	vpo_ioctl(m_vpo_dev, VPO_IO_GET_OUT_MODE, (uintptr_t)&tvsys);
-	return tvsys;
+    hal_api.vpo_ioctl(m_vpo_dev, VPO_IO_GET_OUT_MODE, (uintptr_t)&tvsys);
+    return tvsys;
 }
 
 static uint16_t cur_width = MENU_WIDTH, cur_height = MENU_HEIGHT, *rot_buf;
@@ -279,74 +280,74 @@ static void patch__get_vp_init_low_lcd_para(uint16_t rgb_clock,
 	uint16_t h_total_len, uint16_t v_total_len,
 	uint16_t h_active_len, uint16_t v_active_len)
 {
-	uint16_t *pfn = (void *)&get_vp_init_low_lcd_para;
+	uint16_t *pfn = (void *)hal_api.get_vp_init_low_lcd_para;
 
-	os_disable_interrupt(); // avoid mode switch inbetween
+    hal_api.os_disable_interrupt(); // avoid mode switch inbetween
 
-	pfn[0x50 / sizeof pfn[0]] = rgb_clock;
-	pfn[0x58 / sizeof pfn[0]] = v_total_len;
-	pfn[0x60 / sizeof pfn[0]] = h_total_len;
-	pfn[0x68 / sizeof pfn[0]] = v_active_len;
-	pfn[0x70 / sizeof pfn[0]] = h_active_len; // used for lcd_width, too
+    pfn[0x50 / sizeof pfn[0]] = rgb_clock;
+    pfn[0x58 / sizeof pfn[0]] = v_total_len;
+    pfn[0x60 / sizeof pfn[0]] = h_total_len;
+    pfn[0x68 / sizeof pfn[0]] = v_active_len;
+    pfn[0x70 / sizeof pfn[0]] = h_active_len; // used for lcd_width, too
 
-	__builtin___clear_cache(pfn, &switch_lcd_or_tv);
+    __builtin___clear_cache(pfn, hal_api.switch_lcd_or_tv);
 
-	os_enable_interrupt();
+    hal_api.os_enable_interrupt();
 }
 
 #define MIPS_LI_A1 (9 << 26 | 5 << 16 | 0 << 21) // addiu a1, $0
 
 static void patch__st7789v_caset_raset(uint16_t cols, uint16_t rows)
 {
-	uint32_t *pfn = (void *)&st7789v_caset_raset;
+	uint32_t *pfn = (void *)hal_api.st7789v_caset_raset;
 
-	os_disable_interrupt(); // patch rationale: called in a VSync GPIO ISR!
+    hal_api.os_disable_interrupt(); // patch rationale: called in a VSync GPIO ISR!
 
-	pfn[0x44 / sizeof pfn[0]] = MIPS_LI_A1 | cols >> 8 & 255;
-	pfn[0x50 / sizeof pfn[0]] = MIPS_LI_A1 | cols & 255;
+    pfn[0x44 / sizeof pfn[0]] = MIPS_LI_A1 | cols >> 8 & 255;
+    pfn[0x50 / sizeof pfn[0]] = MIPS_LI_A1 | cols & 255;
 
-	// this one was actually addu a1, $0, $0 hence the full instruction
-	pfn[0x80 / sizeof pfn[0]] = MIPS_LI_A1 | rows >> 8 & 255;
-	pfn[0x8c / sizeof pfn[0]] = MIPS_LI_A1 | rows & 255;
+    // this one was actually addu a1, $0, $0 hence the full instruction
+    pfn[0x80 / sizeof pfn[0]] = MIPS_LI_A1 | rows >> 8 & 255;
+    pfn[0x8c / sizeof pfn[0]] = MIPS_LI_A1 | rows & 255;
 
-	__builtin___clear_cache(pfn, &st7789v_ramwr);
+    __builtin___clear_cache(pfn, hal_api.st7789v_ramwr);
 
-	os_enable_interrupt();
+    hal_api.os_enable_interrupt();
 }
 
 #define MIPS_J (2 << 26)
 
 static void patch__run_screen_write(void *pregion_write)
 {
-	uint32_t *pfn = (void *)&run_screen_write;
-	extern void run_sound_advance(void *, unsigned); // happens to be next fn
+	uint32_t *pfn = (void *)hal_api.run_screen_write;
+    void* next_fn = (void *)hal_api.run_sound_advance;
 
-	os_disable_interrupt(); // avoid screen writes inbetween
+    hal_api.os_disable_interrupt(); // avoid screen writes inbetween
 
-	pfn[0xc0 / sizeof pfn[0]] = MIPS_J |
-		(uint32_t)pregion_write >> 2 & ((1 << 26) - 1);
+    pfn[0xc0 / sizeof pfn[0]] = MIPS_J |
+        (uint32_t)pregion_write >> 2 & ((1 << 26) - 1);
 
-	__builtin___clear_cache(pfn, &run_sound_advance);
+    __builtin___clear_cache(pfn, next_fn);
 
-	os_enable_interrupt();
+    hal_api.os_enable_interrupt();
 }
 
 static void lcd_memory_data_access_ctl(uint8_t data)
 {
-	os_disable_interrupt(); // avoid the VSync GPIO ISR messing pinmux
+	hal_api.os_disable_interrupt(); // avoid the VSync GPIO ISR messing pinmux
 
 	lcd_pinmux_gpio();
 
 	lcd_send_cmd(0x36); // MADCTL
 	lcd_send_data(data);
 
-	os_enable_interrupt();
+	hal_api.os_enable_interrupt();
 }
 
 inline static void apply_rgb_timings(void)
 {
-	if (get_cur_tvsys() == RGB_LCD)
-		switch_lcd_or_tv(1, RGB_LCD);
+    if (get_cur_tvsys() == RGB_LCD)
+        hal_api.switch_lcd_or_tv(1, RGB_LCD);
 }
 
 inline static void swap_region_width_height(void)
@@ -369,8 +370,8 @@ void video_options(config_file_t *conf)
 			g_ratio = info.geometry.aspect_ratio;
 	}
 
-	m_osd_dev = dev_get_by_id(HLD_DEV_TYPE_OSD, 0);
-	m_vpo_dev = dev_get_by_id(HLD_DEV_TYPE_DIS, 0);
+	m_osd_dev = hal_api.dev_get_by_id(HLD_DEV_TYPE_OSD, 0);
+	m_vpo_dev = hal_api.dev_get_by_id(HLD_DEV_TYPE_DIS, 0);
 
 	if (tearing_fix == DISABLED) {
 		patch__get_vp_init_low_lcd_para(VPO_RGB_CLOCK_6_6M,
@@ -405,11 +406,11 @@ void video_options(config_file_t *conf)
 
 void video_cleanup(void)
 {
-	if (tearing_fix == ROTATE || scaling_mode != STOCK) {
-		patch__run_screen_write(&run_osd_region_write);
-	}
+    if (tearing_fix == ROTATE || scaling_mode != STOCK) {
+        patch__run_screen_write(hal_api.run_osd_region_write);
+    }
 
-	if (tearing_fix != ROTATE) return; // that's all folks! fast patch stays
+    if (tearing_fix != ROTATE) return; // that's all folks! fast patch stays
 	tearing_fix = FAST; // ROTATE affects region's scaling
 
 	patch__get_vp_init_low_lcd_para(rgb_clock,

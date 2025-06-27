@@ -12,6 +12,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "core_api.h"
 #include "stockfw.h"
 #include "debug.h"
+#include "hal_api.h"
 
 static void init_once();
 static void full_cache_flush();
@@ -66,7 +67,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	if (!parse_filename(file_path, &corename, &filename)) {
 		xlog("file not MC stub: calling run_gba\n");
 		dbg_show_noblock(0x00, "\n STOCK\n\n %s\n\n ", file_path); // black
-		run_gba(file_path, load_state);
+		hal_api.run_gba(file_path, load_state);
 		return;
 	}
 
@@ -80,10 +81,10 @@ void load_and_run_core(const char *file_path, int load_state)
 	size_t core_size;
 
 	/* wait for the sound thread to exit, replicated in all run_... functions */
-	g_snd_task_flags = g_snd_task_flags & 0xfffe;
-	while (g_snd_task_flags != 0) {
-		dly_tsk(1);
-	}
+	*hal_api.g_snd_task_flags = *hal_api.g_snd_task_flags & 0xfffe;
+    while (*hal_api.g_snd_task_flags != 0) {
+        hal_api.dly_tsk(1);
+    }
 
 	/* FIXME! all of it!! */
 	RAMSIZE = 0x87000000;
@@ -103,7 +104,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	fseeko(pf, 0, SEEK_END);
 	core_size = ftell(pf);
 	fseeko(pf, 0, SEEK_SET);
-	fw_fread(core_load_addr, 1, core_size, pf);
+	hal_api.fw_fread(core_load_addr, 1, core_size, pf);
 	fclose(pf);
 
 	xlog("l: core loaded\n");
@@ -120,30 +121,30 @@ void load_and_run_core(const char *file_path, int load_state)
 
 	/* TODO */
 
-	gfn_state_load = state_stub;
-	gfn_state_save = state_stub;
+	*hal_api.gfn_state_load = state_stub;
+	*hal_api.gfn_state_save = state_stub;
 
-	core_api->retro_set_video_refresh(retro_video_refresh_cb);
-	core_api->retro_set_audio_sample_batch(retro_audio_sample_batch_cb);
-	core_api->retro_set_input_poll(retro_input_poll_cb);
-	core_api->retro_set_input_state(retro_input_state_cb);
-	core_api->retro_set_environment(retro_environment_cb);
+	core_api->retro_set_video_refresh(hal_api.retro_video_refresh_cb);
+	core_api->retro_set_audio_sample_batch(hal_api.retro_audio_sample_batch_cb);
+	core_api->retro_set_input_poll(hal_api.retro_input_poll_cb);
+	core_api->retro_set_input_state(hal_api.retro_input_state_cb);
+	core_api->retro_set_environment(hal_api.retro_environment_cb);
 
 	xlog("l: retro_init\n");
 	core_api->retro_init();
 
-	g_retro_game_info.path = romfile;
-	g_retro_game_info.data = gp_buf_64m;
-	g_retro_game_info.size = g_run_file_size;
+	hal_api.g_retro_game_info->path = romfile;
+	hal_api.g_retro_game_info->data = *hal_api.gp_buf_64m;
+	hal_api.g_retro_game_info->size = *hal_api.g_run_file_size;
 
-	gfn_retro_get_region	= core_api->retro_get_region;
-	gfn_get_system_av_info	= core_api->retro_get_system_av_info;
-	gfn_retro_load_game		= core_api->retro_load_game;
-	gfn_retro_unload_game	= core_api->retro_unload_game;
-	gfn_retro_run			= core_api->retro_run;
+	*hal_api.gfn_retro_get_region	= core_api->retro_get_region;
+	*hal_api.gfn_get_system_av_info	= core_api->retro_get_system_av_info;
+	*hal_api.gfn_retro_load_game		= core_api->retro_load_game;
+	*hal_api.gfn_retro_unload_game	= core_api->retro_unload_game;
+	*hal_api.gfn_retro_run			= core_api->retro_run;
 
 	xlog("l: run_emulator(%d)\n", load_state);
-	run_emulator(load_state);
+	hal_api.run_emulator(load_state);
 
 	xlog("l: retro_deinit\n");
 	core_api->retro_deinit();
@@ -193,6 +194,9 @@ static void init_once()
 		return;
 
 	first_call = false;
+
+    // Initialize the HAL to detect platform and load function pointers
+    hal_init();
 
 	clear_bss();
 	lcd_init();

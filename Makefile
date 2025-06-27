@@ -24,6 +24,7 @@ CFLAGS := -EL -march=mips32 -mtune=mips32 -msoft-float
 CFLAGS += -Os -G0 -mno-abicalls -fno-pic
 CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += -I libs/libretro-common/include
+CFLAGS += -I$(SRC_DIR)
 # CFLAGS += -Wall
 ifeq ($(CLEAR_LOG_ON_BOOT), 1)
 CFLAGS += -DCLEAR_LOG_ON_BOOT=1
@@ -50,8 +51,8 @@ LD_DIR := linker_scripts
 SCRIPTS_DIR := scripts
 
 # Update object and output file locations
-CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
-LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+CORE_OBJS := $(addprefix $(BUILD_DIR)/,syscall_wrappers.o core_api.o lib.o video_sf2000.o)
+LOADER_OBJS := $(addprefix $(BUILD_DIR)/,hal_api.o init.o main.o debug.o)
 
 # Default target
 ifneq ($(CORE),)
@@ -88,7 +89,7 @@ $(BUILD_DIR)/libretro-common.a: libretro-common | $(BUILD_DIR)
 
 $(BUILD_DIR)/core.elf: $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld $(LD_DIR)/bisrv_08_03-core.ld -o $@ \
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld -o $@ \
 		-Wl,--start-group $(CORE_OBJS) $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a -lc -Wl,--end-group
 
 $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
@@ -96,7 +97,7 @@ $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
 
 $(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
 	@$(call echo_i,"compiling $(BUILD_DIR)/loader.elf")
-	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
+	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) -o $(BUILD_DIR)/loader.elf $(LOADER_OBJS)
 
 $(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
@@ -120,7 +121,7 @@ $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUIL
 		exit 1; \
 	fi
 
-	$(Q)cp bisrv_08_03.asd $(BUILD_DIR)/bisrv.asd
+	$(Q)cp bisrv_08_03_sf2000.asd $(BUILD_DIR)/bisrv.asd
 
 	$(Q)dd if=$(BUILD_DIR)/loader.bin of=$(BUILD_DIR)/bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 

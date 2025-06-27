@@ -25,7 +25,11 @@ struct dirent
 	  char     d_name[255];
 };
 
-typedef void DIR;
+struct DIR {
+    int fd;
+    // You can add more fields here if needed in the future
+};
+typedef struct DIR DIR;
 
 DIR *opendir(const char *path);
 int closedir(DIR *dir);

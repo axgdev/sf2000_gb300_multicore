@@ -1,0 +1,18 @@
+--- a/src/hal_api.h
++++ b/src/hal_api.h
+@@ -8,6 +8,14 @@
+ #include "stockfw.h"
+ #include "dirent.h"
+ 
++// Forward-declare structs and enums to resolve compiler warnings.
++// Their full definitions are in stockfw.h or video_sf2000.h,
++// but the compiler needs to know they are types when parsing this header.
++struct vp_init_info;
++enum tvsystem;
++struct osdrect;
++struct osdpara;
++struct osd_vscr;
++
+ // Define HAL API struct to hold all stock firmware function pointers
+ typedef struct {
+     // libc functions
