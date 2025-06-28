@@ -12,6 +12,7 @@ LCDFONT_OFFSET=0x2260
 LOADER_OFFSET=0x1500
 LOADER_ADDR=0x80001500
 LOADER_ADDR_MAX=0x80002180
+LOADER2_ADDR=0x87000000
 
 MIPS=/opt/mips32-mti-elf/2019.09-03-2/bin/mips-mti-elf-
 
@@ -52,6 +53,7 @@ SCRIPTS_DIR := scripts
 # Update object and output file locations
 CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
 LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+LOADER2_OBJS := $(BUILD_DIR)/loader2.o $(BUILD_DIR)/debug.o
 
 # Default target
 ifneq ($(CORE),)
@@ -99,7 +101,27 @@ $(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
 	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
 
 $(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
-	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
+	@$(call echo_i,"objcopy $@")
+	# $(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
+	$(OBJCOPY) -O binary -R .MIPS.abiflags -R .note.gnu.build-id -R ".rel*" $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
+
+$(BUILD_DIR)/loader2.elf: $(LOADER2_OBJS)
+	@$(call echo_i,"compiling $@")
+	# $(LD) -Map $(BUILD_DIR)/loader2.elf.map $(LDFLAGS) -e loader2_entry -T$(LD_DIR)/loader2.ld linker_scripts/bisrv_08_03.ld $^ -o $@
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e loader2_entry -T$(LD_DIR)/loader2.ld $(LD_DIR)/bisrv_08_03.ld -o $@ \
+		-Wl,--start-group $(LOADER2_OBJS) -lc -Wl,--end-group
+
+$(BUILD_DIR)/loader2.bin: $(BUILD_DIR)/loader2.elf
+	@$(call echo_i,"objcopy $@")
+	$(OBJCOPY) -O binary -j .init.loader2_entry -j .init -j .text -j .rodata -j .data $(BUILD_DIR)/loader2.elf $(BUILD_DIR)/loader2.bin
+
+install_loader2: $(BUILD_DIR)/loader2.bin
+	@$(call echo_i,"install loader2.bin to sdcard")
+	cp $(BUILD_DIR)/loader2.bin sdcard/loader2.bin
+
+$(BUILD_DIR)/loader2.o: $(SRC_DIR)/loader2.c | $(BUILD_DIR)
+	@$(call echo_i,"compiling $(BUILD_DIR)/loader2.o")
+	$(CC) $(CFLAGS) -o $@ -c $<
 
 $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUILD_DIR)/crc
 	@$(call echo_i,"patching $(BUILD_DIR)/bisrv.asd")
@@ -168,6 +190,7 @@ endif
 # Clean intermediate files and the final executable
 clean:
 	-rm -rf $(BUILD_DIR)
+	-rm -f $(BUILD_DIR)/loader2.*
 ifneq ($(CORE),)
 	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) clean platform=sf2000
 endif

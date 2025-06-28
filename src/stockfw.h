@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <stddef.h>
+#include <stdio.h>
 
 #define FS_O_RDONLY     0x0000
 #define FS_O_WRONLY     0x0001

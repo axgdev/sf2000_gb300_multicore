@@ -1,8 +1,8 @@
 SECTIONS {
-	. = 0x87080000;
+	. = 0x87000000;
 	.init           :
 	{
-		*(.init.core_entry)
+		*(.init.loader2_entry)
 		KEEP (*(SORT_NONE(.init)))
 	}
 	.text           :
@@ -92,4 +92,4 @@ SECTIONS {
 
     /DISCARD/ : { *(.reginfo); *(.MIPS.abiflags) }
 }
-ENTRY(__core_entry__)
+ENTRY(loader2_entry)

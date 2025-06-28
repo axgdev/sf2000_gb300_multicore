@@ -58,11 +58,11 @@ vsscanf	= 0x802903d0;
 sscanf	= 0x80290410;
 
 /* these are actually fs_ variants but ABI is the same */
-open	= 0x802a5a0c;
-read	= 0x802a5e04;
-write	= 0x802a5f28;
-lseek	= 0x802a6048;
-close	= 0x802a6188;
+fs_open	= 0x802a5a0c;
+fs_read	= 0x802a5e04;
+fs_write	= 0x802a5f28;
+fs_lseek	= 0x802a6048;
+fs_close	= 0x802a6188;
 
 fs_access = 0x802a5c9c;
 
