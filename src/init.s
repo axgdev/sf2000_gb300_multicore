@@ -1,4 +1,5 @@
 .set noreorder
+.section .init.s
 .globl __start
 __start:
 	j	load_and_run_core	# 0x800016d0

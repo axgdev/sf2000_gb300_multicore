@@ -18,6 +18,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "file/config_file.h"
 
 #include "debug.h" // GPIO LCD routines must remain there for BSOD compactness
+#include "hal.h"
 #include "stockfw.h"
 #include "video_sf2000.h"
 

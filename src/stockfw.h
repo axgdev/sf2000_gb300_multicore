@@ -36,9 +36,7 @@ extern ssize_t fs_readdir(int fd, void *buffer);
 extern void osal_tds2_cache_flush(void *buf, unsigned sz);
 extern void os_disable_interrupt(void);
 extern void os_enable_interrupt(void);
-
-extern int dly_tsk(unsigned ms);
-
+// extern int dly_tsk(unsigned ms); // removed, now provided by HAL
 extern uint32_t os_get_tick_count(void);
 
 extern HANDLE dev_get_by_id(uint32_t, uint16_t);

@@ -12,6 +12,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "core_api.h"
 #include "stockfw.h"
 #include "debug.h"
+#include "hal.h"
 
 static void init_once();
 static void full_cache_flush();
@@ -193,6 +194,10 @@ static void init_once()
 		return;
 
 	first_call = false;
+
+	// Initialize the HAL. This call is now safe because the entire loader
+	// is compiled as a single unit, eliminating the $gp problem.
+	hal_init();
 
 	clear_bss();
 	lcd_init();

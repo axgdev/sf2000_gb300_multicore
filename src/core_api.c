@@ -11,6 +11,7 @@
 #include "core_api.h"
 #include "debug.h"
 #include "stockfw.h"
+#include "hal.h"
 #include "video_sf2000.h"
 
 #define MAXPATH 	255

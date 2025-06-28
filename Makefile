@@ -23,8 +23,7 @@ OBJCOPY = $(MIPS)objcopy
 CFLAGS := -EL -march=mips32 -mtune=mips32 -msoft-float
 CFLAGS += -Os -G0 -mno-abicalls -fno-pic
 CFLAGS += -ffunction-sections -fdata-sections
-CFLAGS += -I libs/libretro-common/include
-# CFLAGS += -Wall
+CFLAGS += -I libs/libretro-common/include -I$(SRC_DIR)
 ifeq ($(CLEAR_LOG_ON_BOOT), 1)
 CFLAGS += -DCLEAR_LOG_ON_BOOT=1
 endif
@@ -32,10 +31,7 @@ ifeq ($(DEBUG_XLOG), 1)
 CFLAGS += -DDEBUG_XLOG=1
 endif
 
-LDFLAGS := -EL -nostdlib -z max-page-size=32
-LDFLAGS += --gc-sections
-# needed for .text LMA = VMA
-LDFLAGS += --build-id
+LDFLAGS := -EL -nostdlib -z max-page-size=32 -Wl,--gc-sections -Wl,--build-id -I libs/libretro-common/include -I$(SRC_DIR)
 
 CXX_LDFLAGS := -EL -march=mips32 -mtune=mips32 -msoft-float
 CXX_LDFLAGS += -Wl,--gc-sections --static
@@ -51,7 +47,7 @@ SCRIPTS_DIR := scripts
 
 # Update object and output file locations
 CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
-LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+LOADER_SRCS := src/init.s src/main.c src/hal.c src/lib.c src/debug.c # List all loader sources
 
 # Default target
 ifneq ($(CORE),)
@@ -94,9 +90,9 @@ $(BUILD_DIR)/core.elf: $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common
 $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
 	$(OBJCOPY) -O binary -R .MIPS.abiflags -R .note.gnu.build-id -R ".rel*" $(BUILD_DIR)/core.elf $(BUILD_DIR)/core_87000000
 
-$(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
+$(BUILD_DIR)/loader.elf: $(LOADER_SRCS) $(LD_DIR)/loader.ld
 	@$(call echo_i,"compiling $(BUILD_DIR)/loader.elf")
-	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
+	$(CC) $(LDFLAGS) -Wl,-Map=$(BUILD_DIR)/loader.elf.map -T $(LD_DIR)/loader.ld -o $(BUILD_DIR)/loader.elf $(LOADER_SRCS)
 
 $(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
@@ -142,7 +138,7 @@ $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUIL
 	$(Q)$(BUILD_DIR)/crc $(BUILD_DIR)/bisrv.asd
 
 $(BUILD_DIR)/lcd_font.bin: $(BUILD_DIR)/lcd_font.o
-	$(OBJCOPY) -O binary -j ".rodata.lcd_font" $(BUILD_DIR)/lcd_font.o $(BUILD_DIR)/lcd_font.bin
+	$(OBJCOPY) -O binary -j .rodata.lcd_font $(BUILD_DIR)/lcd_font.o $(BUILD_DIR)/lcd_font.bin
 
 $(BUILD_DIR)/crc: $(SRC_DIR)/crc.c | $(BUILD_DIR)
 	gcc -o $(BUILD_DIR)/crc $(SRC_DIR)/crc.c
