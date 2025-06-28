@@ -8,7 +8,7 @@
 #include "debug.h"
 #include "stockfw.h"
 #include "dirent.h"
-#include "hal_api.h"
+// #include "hal_api.h"
 
 // NOTE: cache flushing for a specific memory range is currently not stable!
 /*
@@ -28,9 +28,9 @@ void cache_flush(void *addr, size_t size)
     asm volatile("nop; nop; nop; nop; nop; nop; nop; nop"); // ehb may be nop on this core
 }*/
 
-int dly_tsk(unsigned ms) {
-    return hal_api.dly_tsk(ms);
-}
+// int dly_tsk(unsigned ms) {
+//     return hal_api.dly_tsk(ms);
+// }
 
 void full_cache_flush()
 {

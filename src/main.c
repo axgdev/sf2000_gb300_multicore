@@ -200,7 +200,30 @@ static void init_once()
 
 	// Initialize the HAL to detect platform and load function pointers
 	xlog("0\n");
-	hal_init();
+	// hal_init();
+	platform_t platform;
+
+	// Bootstrap the HAL. This one-time call requires a manual assembly wrapper
+	// to handle the MIPS $gp register correctly across compiled modules.
+	asm volatile (
+		".set push\n"           // Save current assembler settings
+		".set noreorder\n"      // Don't let the assembler re-arrange these instructions
+		"addiu  $sp, $sp, -4\n"  // Make space on the stack for one register
+		"sw     $gp, 0($sp)\n"   // Save the current $gp onto the stack
+		"jal    hal_init\n"      // Call the function
+		"nop\n"                 // Branch delay slot
+		"move   %0, $v0\n"       // Move the return value from $v0 into our C variable
+		"lw     $gp, 0($sp)\n"   // Restore the original $gp from the stack
+		"addiu  $sp, $sp, 4\n"   // Clean up the stack
+		".set pop\n"            // Restore assembler settings
+		: "=r"(platform)        // Output operand list (platform = $v0)
+	);
+
+	// Log the result from the safe context of main.c
+	if (platform == PLATFORM_SF2000) xlog("S\n");
+	else if (platform == PLATFORM_GB300) xlog("G\n");
+	else xlog("?\n");
+
 	xlog("1\n");
 
 	clear_bss();
