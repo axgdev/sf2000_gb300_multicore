@@ -37,7 +37,7 @@ extern void osal_tds2_cache_flush(void *buf, unsigned sz);
 extern void os_disable_interrupt(void);
 extern void os_enable_interrupt(void);
 
-extern int dly_tsk(unsigned ms);
+// extern int dly_tsk(unsigned ms);
 
 extern uint32_t os_get_tick_count(void);
 

@@ -12,6 +12,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "core_api.h"
 #include "stockfw.h"
 #include "debug.h"
+#include "hal_api.h"
 
 static void init_once();
 static void full_cache_flush();
@@ -82,7 +83,10 @@ void load_and_run_core(const char *file_path, int load_state)
 	/* wait for the sound thread to exit, replicated in all run_... functions */
 	g_snd_task_flags = g_snd_task_flags & 0xfffe;
 	while (g_snd_task_flags != 0) {
-		dly_tsk(1);
+		// dly_tsk(1);
+		xlog("2\n");
+		hal_api.dly_tsk(1);
+		xlog("3\n");
 	}
 
 	/* FIXME! all of it!! */
@@ -91,8 +95,8 @@ void load_and_run_core(const char *file_path, int load_state)
 	snprintf(corefile, MAXPATH, "/mnt/sda1/cores/%s/core_87000000", corename);
 	snprintf(romfile, MAXPATH, "/mnt/sda1/ROMS/%s/%s", corename, filename);
 
-	xlog("corefile=%s\n", corefile);
-	xlog("romfile=%s\n", romfile);
+	// xlog("corefile=%s\n", corefile);
+	// xlog("romfile=%s\n", romfile);
 
 	pf = fopen(corefile, "rb");
 	if (!pf) {
@@ -106,11 +110,11 @@ void load_and_run_core(const char *file_path, int load_state)
 	fw_fread(core_load_addr, 1, core_size, pf);
 	fclose(pf);
 
-	xlog("l: core loaded\n");
+	// xlog("l: core loaded\n");
 
 	full_cache_flush();
 
-	xlog("l: cache flushed\n");
+	// xlog("l: cache flushed\n");
 
 	// address of the core entry function resides at the begining of the loaded core
 	core_entry_t core_entry = core_load_addr;
@@ -129,7 +133,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	core_api->retro_set_input_state(retro_input_state_cb);
 	core_api->retro_set_environment(retro_environment_cb);
 
-	xlog("l: retro_init\n");
+	// xlog("l: retro_init\n");
 	core_api->retro_init();
 
 	g_retro_game_info.path = romfile;
@@ -142,10 +146,10 @@ void load_and_run_core(const char *file_path, int load_state)
 	gfn_retro_unload_game	= core_api->retro_unload_game;
 	gfn_retro_run			= core_api->retro_run;
 
-	xlog("l: run_emulator(%d)\n", load_state);
+	// xlog("l: run_emulator(%d)\n", load_state);
 	run_emulator(load_state);
 
-	xlog("l: retro_deinit\n");
+	// xlog("l: retro_deinit\n");
 	core_api->retro_deinit();
 }
 
@@ -193,6 +197,11 @@ static void init_once()
 		return;
 
 	first_call = false;
+
+	// Initialize the HAL to detect platform and load function pointers
+	xlog("0\n");
+	hal_init();
+	xlog("1\n");
 
 	clear_bss();
 	lcd_init();

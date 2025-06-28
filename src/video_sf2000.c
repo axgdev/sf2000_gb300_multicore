@@ -20,6 +20,7 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "debug.h" // GPIO LCD routines must remain there for BSOD compactness
 #include "stockfw.h"
 #include "video_sf2000.h"
+#include "lib.h"
 
 // better with ge_gma_get_region_info in init TODO
 #define MENU_WIDTH	640

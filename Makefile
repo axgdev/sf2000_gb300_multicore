@@ -25,6 +25,7 @@ CFLAGS += -Os -G0 -mno-abicalls -fno-pic
 CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += -I libs/libretro-common/include
 # CFLAGS += -Wall
+CFLAGS += -I$(SRC_DIR)
 ifeq ($(CLEAR_LOG_ON_BOOT), 1)
 CFLAGS += -DCLEAR_LOG_ON_BOOT=1
 endif
@@ -51,7 +52,7 @@ SCRIPTS_DIR := scripts
 
 # Update object and output file locations
 CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
-LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
+LOADER_OBJS := $(addprefix $(BUILD_DIR)/,hal_api.o init.o main.o debug.o)
 
 # Default target
 ifneq ($(CORE),)
