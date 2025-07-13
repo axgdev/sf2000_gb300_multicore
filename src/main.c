@@ -17,10 +17,10 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #define FROGGY_TYPE 0 // Default value (SF2000) if not defined at compile time
 #endif
 
-#define G_MXMV_SCREEN_MAGIC (FROGGY_TYPE == 0 ? 0x60 : 0x28) // SF2000 or GB300
+#define G_MXMV_SCREEN_MAGIC (FROGGY_TYPE == 0 ? 0x60 : 0x28) // SF2000 or GB300v1
 
 const int platform = FROGGY_TYPE;
-const unsigned short g_mxmv_screen_magic = G_MXMV_SCREEN_MAGIC; // SF2000 or GB300
+const unsigned short g_mxmv_screen_magic = G_MXMV_SCREEN_MAGIC; // SF2000 or GB300v1
 
 static void init_once();
 static void full_cache_flush();

@@ -1,15 +1,15 @@
 NPROC=$(shell nproc)
 SHELL:=/bin/bash
 
-# Platform selection: SF2000 (default) or GB300
+# Platform selection: SF2000 (default) or GB300v1
 FROGGY_TYPE ?= SF2000
 
 ifeq ($(FROGGY_TYPE),SF2000)
   FROGGY_TYPE_VALUE := 0
-else ifeq ($(FROGGY_TYPE),GB300)
+else ifeq ($(FROGGY_TYPE),GB300v1)
   FROGGY_TYPE_VALUE := 1
 else
-  $(error Unknown PLATFORM "$(PLATFORM)" (must be SF2000 or GB300))
+  $(error Unknown PLATFORM "$(PLATFORM)" (must be SF2000 or GB300v1))
 endif
 
 # clear the log file every boot
@@ -67,12 +67,12 @@ LOADER_LD_PATH := $(LD_DIR)/bisrv_08_03.ld
 # if SF2000 populate LOADER_LD_PATH with the SF2000 linker script
 ifeq ($(FROGGY_TYPE), SF2000)
 LOADER_LD_PATH := $(LD_DIR)/bisrv_08_03.ld
-else ifeq ($(FROGGY_TYPE), GB300)
-# if GB300 populate LOADER_LD_PATH with the GB300 linker script
-LOADER_LD_PATH := $(LD_DIR)/bisrv_GB300.ld
+else ifeq ($(FROGGY_TYPE), GB300v1)
+# if GB300v1 populate LOADER_LD_PATH with the GB300v1 linker script
+LOADER_LD_PATH := $(LD_DIR)/bisrv_GB300v1.ld
 else
-# if neither SF2000 nor GB300, throw an error
-$(error FROGGY_TYPE must be set to SF2000 or GB300)
+# if neither SF2000 nor GB300v1, throw an error
+$(error FROGGY_TYPE must be set to SF2000 or GB300v1)
 endif
 
 # Update object and output file locations
@@ -114,7 +114,7 @@ $(BUILD_DIR)/libretro-common.a: libretro-common | $(BUILD_DIR)
 
 $(BUILD_DIR)/core.elf: $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld $(LD_DIR)/bisrv_08_03-core.ld -o $@ \
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -T$(LD_DIR)/core.ld -o $@ \
 		-Wl,--start-group $(CORE_OBJS) $(BUILD_DIR)/libretro_core.a $(BUILD_DIR)/libretro-common.a -lc -Wl,--end-group
 
 $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
@@ -148,10 +148,10 @@ $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUIL
 
 ifeq ($(FROGGY_TYPE), SF2000)
 	$(Q)cp bisrv_08_03.asd $(BUILD_DIR)/bisrv.asd
-else ifeq ($(FROGGY_TYPE), GB300)
-	$(Q)cp bisrv_GB300.asd $(BUILD_DIR)/bisrv.asd
+else ifeq ($(FROGGY_TYPE), GB300v1)
+	$(Q)cp bisrv_GB300v1.asd $(BUILD_DIR)/bisrv.asd
 else
-	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300v1")
 endif
 
 	$(Q)dd if=$(BUILD_DIR)/loader.bin of=$(BUILD_DIR)/bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
@@ -162,10 +162,10 @@ endif
 	# jal run_gba -> jal 0x80001500
 ifeq ($(FROGGY_TYPE), SF2000)
 	printf "\x40\x05\x00\x0C" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc
-else ifeq ($(FROGGY_TYPE), GB300)
+else ifeq ($(FROGGY_TYPE), GB300v1)
 	printf "\x40\x05\x00\x0C" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x30f0bc)) conv=notrunc
 else
-	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300v1")
 endif
 
 	# endless loop in sys_watchdog_reboot -> j 0x80001508
@@ -177,11 +177,11 @@ ifeq ($(FROGGY_TYPE), SF2000)
 	# patch the buffer size for handling the save state snapshot image
 	# \x0c (768k) would be enough up to cores displaying at 640x480x2
 	printf "\x0c" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc
-else ifeq ($(FROGGY_TYPE), GB300)
-	# nothing to do here, comment from osaka: save states buffer is a whopping 4M for the GB300 @ 0x80303bcc
-	echo "GB300 does not require save state buffer size patch"
+else ifeq ($(FROGGY_TYPE), GB300v1)
+	# nothing to do here, comment from osaka: save states buffer is a whopping 4M for the GB300v1 @ 0x80303bcc
+	echo "GB300v1 does not require save state buffer size patch"
 else
-	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300v1")
 endif
 
 	$(Q)$(BUILD_DIR)/crc $(BUILD_DIR)/bisrv.asd

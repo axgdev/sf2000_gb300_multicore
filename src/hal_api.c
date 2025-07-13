@@ -6,7 +6,7 @@
 
 enum platform_t {
     PLATFORM_SF2000 = 0,
-    PLATFORM_GB300  = 1,
+    PLATFORM_GB300v1  = 1,
     PLATFORM_UNKNOWN = -1,
 };
 
@@ -238,7 +238,7 @@ void patch_hal_api(int platform) {
         fw_fps_counter_enable = (int *)0x80c0b5e0;
         fw_fps_counter = (int *)0x80c0b5dc;
         fw_fps_counter_format = (char *)0x8099bdf0; // "%2d/%2d"
-    } else if (platform == PLATFORM_GB300) {
+    } else if (platform == PLATFORM_GB300v1) {
         // GB300 addresses
         g_hal_api.fs_open = (void*)0x8025b78c;
         g_hal_api.fs_close = (void*)0x8025bf08;
@@ -583,7 +583,7 @@ void restore_stock_gp(int platform) {
     if (platform == PLATFORM_SF2000) {
         *(unsigned *)0x80049744 = 0x3c1c80c1; // lui$gp, 0x80c1
 	    *(unsigned *)0x80049748 = 0x279c14f4; // addiu$gp, 0x14f4
-    } else if (platform == PLATFORM_GB300) {
+    } else if (platform == PLATFORM_GB300v1) {
         *(unsigned *)0x80049744 = 0x3c1c8070; // lui$gp, 0x8070
 	    *(unsigned *)0x80049748 = 0x279cd798; // addiu$gp, 0xd798
     } else {
