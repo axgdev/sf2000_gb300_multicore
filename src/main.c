@@ -13,6 +13,15 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND! */
 #include "stockfw.h"
 #include "debug.h"
 
+#ifndef FROGGY_TYPE
+#define FROGGY_TYPE 0 // Default value (SF2000) if not defined at compile time
+#endif
+
+#define G_MXMV_SCREEN_MAGIC (FROGGY_TYPE == 0 ? 0x60 : 0x28) // SF2000 or GB300
+
+const int platform = FROGGY_TYPE;
+const unsigned short g_mxmv_screen_magic = G_MXMV_SCREEN_MAGIC; // SF2000 or GB300
+
 static void init_once();
 static void full_cache_flush();
 
@@ -24,12 +33,6 @@ static int state_stub(const char *path) {
 static char *corefile = NULL;
 static char *romfile = NULL;
 static char *tmpbuffer = NULL;
-
-#define MIPS_J(pfunc)    (2 << 26) | (uint32_t)pfunc >> 2 & ((1 << 26) - 1)
-#define MIPS_JAL(pfunc)  (3 << 26) | (uint32_t)pfunc >> 2 & ((1 << 26) - 1)
-
-#define PATCH_J(target, hook)    *(uint32_t*)(target) = MIPS_J(hook)
-#define PATCH_JAL(target, hook)  *(uint32_t*)(target) = MIPS_JAL(hook)
 
 bool parse_filename(const char *file_path, const char**corename, const char **filename)
 {
@@ -59,6 +62,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	init_once();
 
 	xlog("l: run file=%s\n", file_path);
+	xlog("platform=%d\n", platform);
 
 	// the expected template for file_path is - [corename];[rom filename].gba
 	const char *corename;
@@ -116,7 +120,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	core_entry_t core_entry = core_load_addr;
 
 	// the entry function clears core's .bss and return the core's exported api
-	struct retro_core_t *core_api = core_entry();
+	struct retro_core_t *core_api = core_entry(platform);
 
 	/* TODO */
 
@@ -176,16 +180,6 @@ static void clear_bss()
 	memset(start, 0, end - start);
 }
 
-static void restore_stock_gp()
-{
-	// set $gp to the original stock's value like is done at 0x80001274 where $gp is
-	// initially set by the stock startup code
-	asm(
-        "lui	$gp, 0x80c1				\n"
-        "addiu	$gp, $gp, 0x14f4		\n"
-    );
-}
-
 static void init_once()
 {
 	static bool first_call = true;
@@ -204,15 +198,6 @@ static void init_once()
 	corefile = malloc(MAXPATH);
 	romfile = malloc(MAXPATH);
 	tmpbuffer = malloc(MAXPATH);
-
-	// Before calling "irq_handler", make sure the $gp register points to the original address that
-	// was initially set by the stock startup code and that all stock code expect it to be.
-	//
-	// This solves the freeze that was caused when using gpSP dynarec.
-	// The dynamically generated code modifies the $gp register for the duration of its execution,
-	// but if suddenly an interrupt occurs and it needs to access some global vars, then the system will crash
-	// or freeze because $gp doesn't have right value that the irq/interrupt handlers expect it to be.
-	PATCH_JAL(0x80049744, restore_stock_gp);
 }
 
 static void full_cache_flush()

@@ -1,6 +1,17 @@
 NPROC=$(shell nproc)
 SHELL:=/bin/bash
 
+# Platform selection: SF2000 (default) or GB300
+FROGGY_TYPE ?= SF2000
+
+ifeq ($(FROGGY_TYPE),SF2000)
+  FROGGY_TYPE_VALUE := 0
+else ifeq ($(FROGGY_TYPE),GB300)
+  FROGGY_TYPE_VALUE := 1
+else
+  $(error Unknown PLATFORM "$(PLATFORM)" (must be SF2000 or GB300))
+endif
+
 # clear the log file every boot
 CLEAR_LOG_ON_BOOT = 0
 # debug logging with xlog
@@ -24,6 +35,7 @@ CFLAGS := -EL -march=mips32 -mtune=mips32 -msoft-float
 CFLAGS += -Os -G0 -mno-abicalls -fno-pic
 CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += -I libs/libretro-common/include
+CFLAGS += -DFROGGY_TYPE=$(FROGGY_TYPE_VALUE)
 # CFLAGS += -Wall
 ifeq ($(CLEAR_LOG_ON_BOOT), 1)
 CFLAGS += -DCLEAR_LOG_ON_BOOT=1
@@ -49,8 +61,22 @@ SRC_DIR := src
 LD_DIR := linker_scripts
 SCRIPTS_DIR := scripts
 
+# Set LOADER_LD_PATH as default to the SF2000 linker script
+LOADER_LD_PATH := $(LD_DIR)/bisrv_08_03.ld
+
+# if SF2000 populate LOADER_LD_PATH with the SF2000 linker script
+ifeq ($(FROGGY_TYPE), SF2000)
+LOADER_LD_PATH := $(LD_DIR)/bisrv_08_03.ld
+else ifeq ($(FROGGY_TYPE), GB300)
+# if GB300 populate LOADER_LD_PATH with the GB300 linker script
+LOADER_LD_PATH := $(LD_DIR)/bisrv_GB300.ld
+else
+# if neither SF2000 nor GB300, throw an error
+$(error FROGGY_TYPE must be set to SF2000 or GB300)
+endif
+
 # Update object and output file locations
-CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o)
+CORE_OBJS := $(addprefix $(BUILD_DIR)/,core_api.o lib.o debug.o video_sf2000.o hal_api.o)
 LOADER_OBJS := $(addprefix $(BUILD_DIR)/,init.o main.o debug.o)
 
 # Default target
@@ -96,7 +122,7 @@ $(BUILD_DIR)/core_87000000: $(BUILD_DIR)/core.elf
 
 $(BUILD_DIR)/loader.elf: $(LOADER_OBJS)
 	@$(call echo_i,"compiling $(BUILD_DIR)/loader.elf")
-	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LD_DIR)/bisrv_08_03.ld $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
+	$(LD) -Map $(BUILD_DIR)/loader.elf.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) $(LOADER_LD_PATH) $(LOADER_OBJS) -o $(BUILD_DIR)/loader.elf
 
 $(BUILD_DIR)/loader.bin: $(BUILD_DIR)/loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data $(BUILD_DIR)/loader.elf $(BUILD_DIR)/loader.bin
@@ -120,7 +146,13 @@ $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUIL
 		exit 1; \
 	fi
 
+ifeq ($(FROGGY_TYPE), SF2000)
 	$(Q)cp bisrv_08_03.asd $(BUILD_DIR)/bisrv.asd
+else ifeq ($(FROGGY_TYPE), GB300)
+	$(Q)cp bisrv_GB300.asd $(BUILD_DIR)/bisrv.asd
+else
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+endif
 
 	$(Q)dd if=$(BUILD_DIR)/loader.bin of=$(BUILD_DIR)/bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 
@@ -128,16 +160,29 @@ $(BUILD_DIR)/bisrv.asd: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/lcd_font.bin $(BUIL
 
 	# note: this patch must match $(LOADER_ADDR)
 	# jal run_gba -> jal 0x80001500
+ifeq ($(FROGGY_TYPE), SF2000)
 	printf "\x40\x05\x00\x0C" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc
+else ifeq ($(FROGGY_TYPE), GB300)
+	printf "\x40\x05\x00\x0C" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x30f0bc)) conv=notrunc
+else
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+endif
 
 	# endless loop in sys_watchdog_reboot -> j 0x80001508
 	printf "\x42\x05\x00\x08" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x30d4)) conv=notrunc
 	# endless loop in INT_General_Exception_Hdlr -> j 0x80001510
 	printf "\x44\x05\x00\x08" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x495a0)) conv=notrunc
 
+ifeq ($(FROGGY_TYPE), SF2000)
 	# patch the buffer size for handling the save state snapshot image
 	# \x0c (768k) would be enough up to cores displaying at 640x480x2
 	printf "\x0c" | dd of=$(BUILD_DIR)/bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc
+else ifeq ($(FROGGY_TYPE), GB300)
+	# nothing to do here, comment from osaka: save states buffer is a whopping 4M for the GB300 @ 0x80303bcc
+	echo "GB300 does not require save state buffer size patch"
+else
+	$(call echo_e,"error: FROGGY_TYPE must be set to SF2000 or GB300")
+endif
 
 	$(Q)$(BUILD_DIR)/crc $(BUILD_DIR)/bisrv.asd
 
