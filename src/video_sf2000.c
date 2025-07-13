@@ -52,6 +52,8 @@ static bool g_filtered = true;
 
 static double g_ntsc_underscan = 0.94;
 
+extern unsigned short g_mxmv_screen_magic;
+
 static void config_load(config_file_t *conf)
 {
 	const struct config_entry_list *e;
@@ -418,7 +420,7 @@ void video_cleanup(void)
 	apply_rgb_timings();
 
 	patch__st7789v_caset_raset(320, 240);
-	lcd_memory_data_access_ctl(0x60); // only for SF2000 FIXME
+	lcd_memory_data_access_ctl(g_mxmv_screen_magic); // only for SF2000 FIXME
 	// fixable by parsing m_st7789v_init
 
 	swap_region_width_height(); // second time thus cancels out
