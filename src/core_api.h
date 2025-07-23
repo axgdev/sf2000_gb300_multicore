@@ -1,6 +1,9 @@
 #ifndef __CORE_API_H
 #define __CORE_API_H
 
+#include <stddef.h>
+#include "libretro.h" // This header defines all the core libretro types and structs
+
 struct retro_core_t
 {
    void (*retro_init)(void);
@@ -30,6 +33,6 @@ struct retro_core_t
    size_t (*retro_get_memory_size)(unsigned);
 };
 
-typedef struct retro_core_t *(*core_entry_t)(void);
+typedef struct retro_core_t *(*core_entry_t)(int platform);
 
 #endif

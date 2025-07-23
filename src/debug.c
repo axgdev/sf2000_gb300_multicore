@@ -16,6 +16,7 @@ extern unsigned long PINMUXL;
 extern unsigned long PINMUXT;
 extern unsigned long GPIOLCTRL;
 extern unsigned long GPIOTCTRL;
+extern unsigned short g_mxmv_screen_magic;
 
 #define COLS 	(320/FONT_WIDTH_STRIDE)
 #define ROWS	(240/FONT_HEIGHT)
@@ -108,7 +109,7 @@ static void lcd_flush(unsigned short background_color)
 
 	// applicable ONLY to SF2000's screen FIXME
 	lcd_send_cmd(0x36); // MADCTL
-	lcd_send_data(0x60); // MX (X mirror) MV (rotation)
+	lcd_send_data(g_mxmv_screen_magic); // MX (X mirror) MV (rotation)
 
 	lcd_send_cmd(0x2a); // CASET
 	lcd_send_data(0);

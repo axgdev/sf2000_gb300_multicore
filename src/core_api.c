@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "stockfw.h"
 #include "video_sf2000.h"
+#include "hal_api.h"
 
 #define MAXPATH 	255
 #define SYSTEM_DIRECTORY	"/mnt/sda1/bios"
@@ -57,9 +58,6 @@ static bool g_per_state_srm = true;
 
 static void dummy_retro_run(void);
 
-static int *fw_fps_counter_enable = (int *)0x80c0b5e0;
-static int *fw_fps_counter = (int *)0x80c0b5dc;
-static char *fw_fps_counter_format = (char *)0x8099bdf0;	// "%2d/%2d"
 static void fps_counter_enable(bool enable);
 
 // Forward declarations to fix implicit declaration warnings
@@ -198,11 +196,13 @@ static void call_dtors()
 // __core_entry__ must be placed at a known location in the binary (at the beginning)
 // so that when the loader actually loads the binary into mem address 0x87000000,
 // then __core_entry__ will be the first function there for the loader to call.
-struct retro_core_t *__core_entry__(void) __attribute__((section(".init.core_entry")));
+struct retro_core_t *__core_entry__(int platform) __attribute__((section(".init.core_entry")));
 
-struct retro_core_t *__core_entry__(void)
+struct retro_core_t *__core_entry__(int platform)
 {
 	clear_bss();
+    patch_hal_api(platform);
+	restore_stock_gp(platform);
 
 	extern void __sinit (struct _reent *);
 	extern void __libc_init_array (void);
